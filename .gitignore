@@ -9,9 +9,11 @@ dist
 *.log.*
 *.json
 *.jsonl
+*.out
 
 # Data
 !**/alpaca-data-conversation.json
+playground/data/eval/
 
 # Editor
 .idea
@@ -33,3 +35,6 @@ ckpts*
 
 # Demo
 serve_images/
+
+# Model
+*.pth

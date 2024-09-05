@@ -19,7 +19,7 @@ import torch
 import torch.nn as nn
 
 from .multimodal_encoder.builder import build_vision_tower
-from .multimodal_projector.builder import build_vision_projector
+from .multimodal_projector.builder import build_vision_projector, build_bbox_projector
 
 from llava.constants import (
     IGNORE_INDEX,
@@ -40,6 +40,7 @@ class LlavaMetaModel:
         if hasattr(config, "mm_vision_tower"):
             self.vision_tower = build_vision_tower(config, delay_load=True)
             self.mm_projector = build_vision_projector(config)
+            self.bbox_projector = build_bbox_projector(config)
 
             if "unpad" in getattr(config, "mm_patch_merge_type", ""):
                 self.image_newline = nn.Parameter(
@@ -88,6 +89,7 @@ class LlavaMetaModel:
 
         if getattr(self, "mm_projector", None) is None:
             self.mm_projector = build_vision_projector(self.config)
+            self.bbox_projector = build_bbox_projector(self.config)
 
             if "unpad" in mm_patch_merge_type:
                 embed_std = 1 / torch.sqrt(
@@ -115,6 +117,9 @@ class LlavaMetaModel:
 
             self.mm_projector.load_state_dict(
                 get_w(mm_projector_weights, "mm_projector")
+            )
+            self.bbox_projector.load_state_dict(
+                get_w(mm_projector_weights, "bbox_projector")
             )
 
 
@@ -158,10 +163,11 @@ class LlavaMetaForCausalLM(ABC):
     def get_vision_tower(self):
         return self.get_model().get_vision_tower()
 
-    def encode_images(self, images):
+    def encode_images(self, images, bboxes):
         image_features = self.get_model().get_vision_tower()(images)
         image_features = self.get_model().mm_projector(image_features)
-        return image_features
+        bbox_embeddings = self.get_model().bbox_projector(bboxes)
+        return image_features + bbox_embeddings
 
     def prepare_inputs_labels_for_multimodal(
         self,
@@ -184,13 +190,19 @@ class LlavaMetaForCausalLM(ABC):
                 labels,
             )
 
+        # list of sets to two lists
+        images, bboxes = images
+
         if type(images) is list:
             image_features = []
-            for img in images:
+            for idx, img in enumerate(images):
+                bbox = bboxes[idx]
                 if type(img) is list:
                     img = [x.unsqueeze(0) if x.ndim == 3 else x for x in img]
+                    bbox = [x.view(1, 1, -1) if x.ndim == 1 else x for x in bbox]
                 concat_images = torch.cat([image for image in img], dim=0)
-                image_feature = self.encode_images(concat_images)
+                concat_bbox = torch.cat([bbox for bbox in bbox], dim=0)
+                image_feature = self.encode_images(concat_images, concat_bbox)
                 split_sizes = [image.shape[0] for image in img]
                 image_feature = torch.split(image_feature, split_sizes, dim=0)
                 mm_patch_merge_type = getattr(
@@ -268,13 +280,13 @@ class LlavaMetaForCausalLM(ABC):
                                 )
                         new_image_feature.append(image_feature)
                     image_feature = new_image_feature
+                else:
+                    raise ValueError(
+                        f"Unexpected mm_patch_merge_type: {self.config.mm_patch_merge_type}"
+                    )
                 image_features.append(image_feature)
-            else:
-                raise ValueError(
-                    f"Unexpected mm_patch_merge_type: {self.config.mm_patch_merge_type}"
-                )
         else:
-            image_features = self.encode_images(images)
+            image_features = [self.encode_images(images, bboxes)]
 
         # TODO: image start / end is not implemented here to support pretraining.
         if getattr(self.config, "tune_mm_mlp_adapter", False) and getattr(
@@ -313,18 +325,18 @@ class LlavaMetaForCausalLM(ABC):
 
         new_input_embeds = []
         new_labels = []
-        cur_image_idx = 0
         for batch_idx, cur_input_ids in enumerate(input_ids):
+            cur_image_idx = 0
             num_images = (cur_input_ids == IMAGE_TOKEN_INDEX).sum()
             if num_images == 0:
-                cur_image_features = image_features[cur_image_idx]
+                cur_image_features = image_features[batch_idx][cur_image_idx]
                 cur_input_embeds_1 = self.get_model().embed_tokens(cur_input_ids)
                 cur_input_embeds = torch.cat(
                     [cur_input_embeds_1, cur_image_features[0:0]], dim=0
                 )
                 new_input_embeds.append(cur_input_embeds)
                 new_labels.append(labels[batch_idx])
-                cur_image_idx += 1
+                # cur_image_idx += 1
                 continue
 
             image_token_indices = (
@@ -332,6 +344,10 @@ class LlavaMetaForCausalLM(ABC):
                 + torch.where(cur_input_ids == IMAGE_TOKEN_INDEX)[0].tolist()
                 + [cur_input_ids.shape[0]]
             )
+            assert len(image_token_indices) - 2 == len(
+                image_features[batch_idx]
+            ), f"Mismatch in number of image tokens and image features: {len(image_token_indices) - 2} vs {len(image_features[batch_idx])}"
+
             cur_input_ids_noim = []
             cur_labels = labels[batch_idx]
             cur_labels_noim = []
@@ -353,10 +369,11 @@ class LlavaMetaForCausalLM(ABC):
             cur_new_labels = []
 
             for i in range(num_images + 1):
-                cur_new_input_embeds.append(cur_input_embeds_no_im[i])
-                cur_new_labels.append(cur_labels_noim[i])
+                if cur_input_embeds_no_im[i].shape[0] > 0:
+                    cur_new_input_embeds.append(cur_input_embeds_no_im[i])
+                    cur_new_labels.append(cur_labels_noim[i])
                 if i < num_images:
-                    cur_image_features = image_features[cur_image_idx]
+                    cur_image_features = image_features[batch_idx][cur_image_idx]
                     cur_image_idx += 1
                     cur_new_input_embeds.append(cur_image_features)
                     cur_new_labels.append(
