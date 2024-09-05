@@ -831,9 +831,11 @@ class LazySupervisedDataset(Dataset):
         ids = self.list_data_dict[idx]["ids"]
         if not os.path.exists(image_path):
             cur_ext = os.path.basename(image_path).split(".")[-1]
-            for ext in ["png", "bmp", "jpeg", "gif"]:
-                image_path = image_path.replace(cur_ext, ext)
-                if os.path.exists(image_path):
+            for ext in ["jpg", "jpeg", "png", "bmp", "gif"]:
+                new_path = image_path.replace(cur_ext, ext)
+                print(new_path, os.path.exists(new_path))
+                if os.path.exists(new_path):
+                    image_path = new_path
                     break
         image = Image.open(image_path)
         if image_path.endswith(".gif"):
