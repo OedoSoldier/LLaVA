@@ -833,7 +833,6 @@ class LazySupervisedDataset(Dataset):
             cur_ext = os.path.basename(image_path).split(".")[-1]
             for ext in ["jpg", "jpeg", "png", "bmp", "gif"]:
                 new_path = image_path.replace(cur_ext, ext)
-                print(new_path, os.path.exists(new_path))
                 if os.path.exists(new_path):
                     image_path = new_path
                     break
