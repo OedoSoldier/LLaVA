@@ -201,7 +201,7 @@ class LlavaMetaForCausalLM(ABC):
                     img = [x.unsqueeze(0) if x.ndim == 3 else x for x in img]
                     bbox = [x.view(1, 1, -1) if x.ndim == 1 else x for x in bbox]
                 concat_images = torch.cat([image for image in img], dim=0)
-                concat_bbox = torch.cat([bbox for bbox in bbox], dim=0)
+                concat_bbox = torch.cat([box for box in bbox], dim=0)
                 image_feature = self.encode_images(concat_images, concat_bbox)
                 split_sizes = [image.shape[0] for image in img]
                 image_feature = torch.split(image_feature, split_sizes, dim=0)

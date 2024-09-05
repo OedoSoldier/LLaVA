@@ -830,8 +830,9 @@ class LazySupervisedDataset(Dataset):
         seg_file = self.list_data_dict[idx]["seg"]
         ids = self.list_data_dict[idx]["ids"]
         if not os.path.exists(image_path):
+            cur_ext = os.path.basename(image_path).split(".")[-1]
             for ext in ["png", "bmp", "jpeg", "gif"]:
-                image_path = image_path.replace("jpg", ext)
+                image_path = image_path.replace(cur_ext, ext)
                 if os.path.exists(image_path):
                     break
         image = Image.open(image_path)
