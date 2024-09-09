@@ -7,13 +7,13 @@ CHUNKS=${#GPULIST[@]}
 
 CKPT="llava-vicuna-7b-v1.5-finetune"
 SPLIT="llava_gqa_testdev_balanced"
-GQADIR="./playground/data/eval/gqa"
+GQADIR="./playground/data/eval/gqa/data"
 
 for IDX in $(seq 0 $((CHUNKS-1))); do
     CUDA_VISIBLE_DEVICES=${GPULIST[$IDX]} python llava/eval/model_vqa_loader.py \
         --model-path checkpoints/$CKPT \
         --question-file ./playground/data/eval/gqa/$SPLIT.jsonl \
-        --image-folder ./playground/data/eval/gqa/images \
+        --image-folder ./playground/data/eval/gqa/data/images \
         --answers-file ./playground/data/eval/gqa/answers/$SPLIT/$CKPT/${CHUNKS}_${IDX}.jsonl \
         --num-chunks $CHUNKS \
         --chunk-idx $IDX \
