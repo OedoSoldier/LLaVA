@@ -352,7 +352,7 @@ def preprocess_multimodal(sources: Sequence[str], data_args: DataArguments) -> D
     for source in sources:
         for sentence in source:
             if DEFAULT_IMAGE_TOKEN in sentence["value"]:
-                image_token_num = sentence["value"].count(DEFAULT_IMAGE_TOKEN)
+                image_token_num = sentence["value"].count(DEFAULT_IMAGE_TOKEN) + 1
                 sentence["value"] = (
                     sentence["value"].replace(DEFAULT_IMAGE_TOKEN, "").strip()
                 )
@@ -661,7 +661,7 @@ def preprocess_plain(
     for source in sources:
         assert len(source) == 2
         assert DEFAULT_IMAGE_TOKEN in source[0]["value"]
-        image_token_num = source[0]["value"].count(DEFAULT_IMAGE_TOKEN)
+        image_token_num = source[0]["value"].count(DEFAULT_IMAGE_TOKEN) + 1
         source[0]["value"] = DEFAULT_IMAGE_TOKEN * image_token_num
         conversation = (
             source[0]["value"]

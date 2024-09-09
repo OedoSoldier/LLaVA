@@ -1,4 +1,5 @@
 import os
+import torch
 from .clip_encoder import CLIPVisionTower, CLIPVisionTowerS2, AlphaCLIPVisionTower
 
 
@@ -11,6 +12,7 @@ def build_vision_tower(vision_tower_cfg, **kwargs):
     is_absolute_path_exists = os.path.exists(vision_tower)
     use_s2 = getattr(vision_tower_cfg, "s2", False)
     use_alpha = getattr(vision_tower_cfg, "alpha", False)
+    use_dual = getattr(vision_tower_cfg, "dual", False)
     if (
         is_absolute_path_exists
         or vision_tower.startswith("openai")
@@ -21,6 +23,13 @@ def build_vision_tower(vision_tower_cfg, **kwargs):
             return CLIPVisionTowerS2(vision_tower, args=vision_tower_cfg, **kwargs)
         if use_alpha:
             return AlphaCLIPVisionTower(vision_tower, args=vision_tower_cfg, **kwargs)
+        elif use_dual:
+            return torch.nn.ModuleList(
+                [
+                    CLIPVisionTower(vision_tower, args=vision_tower_cfg, **kwargs),
+                    AlphaCLIPVisionTower(vision_tower, args=vision_tower_cfg, **kwargs),
+                ]
+            )
         else:
             return CLIPVisionTower(vision_tower, args=vision_tower_cfg, **kwargs)
 

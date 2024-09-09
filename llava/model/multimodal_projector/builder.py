@@ -31,18 +31,42 @@ class SimpleResBlock(nn.Module):
 
 def build_vision_projector(config, delay_load=False, **kwargs):
     projector_type = getattr(config, "mm_projector_type", "linear")
+    use_dual = getattr(config, "dual", False)
 
     if projector_type == "linear":
-        return nn.Linear(config.mm_hidden_size, config.hidden_size)
+        if use_dual:
+            return torch.nn.ModuleList(
+                [
+                    nn.Linear(config.mm_hidden_size, config.hidden_size),
+                    nn.Linear(config.mm_hidden_size, config.hidden_size),
+                ]
+            )
+        else:
+            return nn.Linear(config.mm_hidden_size, config.hidden_size)
 
     mlp_gelu_match = re.match(r"^mlp(\d+)x_gelu$", projector_type)
     if mlp_gelu_match:
-        mlp_depth = int(mlp_gelu_match.group(1))
-        modules = [nn.Linear(config.mm_hidden_size, config.hidden_size)]
-        for _ in range(1, mlp_depth):
-            modules.append(nn.GELU())
-            modules.append(nn.Linear(config.hidden_size, config.hidden_size))
-        return nn.Sequential(*modules)
+        if use_dual:
+            mlp_depth = int(mlp_gelu_match.group(1))
+            modules = [
+                [nn.Linear(config.mm_hidden_size, config.hidden_size)],
+                [nn.Linear(config.mm_hidden_size, config.hidden_size)],
+            ]
+            for _ in range(1, mlp_depth):
+                modules[0].append(nn.GELU())
+                modules[0].append(nn.Linear(config.hidden_size, config.hidden_size))
+                modules[1].append(nn.GELU())
+                modules[1].append(nn.Linear(config.hidden_size, config.hidden_size))
+            return torch.nn.ModuleList(
+                [nn.Sequential(*modules[0]), nn.Sequential(*modules[1])]
+            )
+        else:
+            mlp_depth = int(mlp_gelu_match.group(1))
+            modules = [nn.Linear(config.mm_hidden_size, config.hidden_size)]
+            for _ in range(1, mlp_depth):
+                modules.append(nn.GELU())
+                modules.append(nn.Linear(config.hidden_size, config.hidden_size))
+            return nn.Sequential(*modules)
 
     if projector_type == "identity":
         return IdentityMap()

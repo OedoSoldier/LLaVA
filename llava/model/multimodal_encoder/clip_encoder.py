@@ -211,6 +211,7 @@ def rewrited_forward(self, pixel_values: torch.FloatTensor) -> torch.Tensor:
 class AlphaCLIPVisionTower(CLIPVisionTower):
     def __init__(self, vision_tower, args, delay_load=False):
         super().__init__(vision_tower, args, delay_load)
+        self.select_feature = "cls"
 
     def load_model(self, device_map=None):
         if self.is_loaded:

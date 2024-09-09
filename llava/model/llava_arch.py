@@ -49,8 +49,8 @@ class LlavaMetaModel:
 
     def get_vision_tower(self):
         vision_tower = getattr(self, "vision_tower", None)
-        if type(vision_tower) is list:
-            vision_tower = vision_tower[0]
+        # if type(vision_tower) is list:
+        #     vision_tower = vision_tower[0]
         return vision_tower
 
     def initialize_vision_modules(self, model_args, fsdp=None):
@@ -60,9 +60,11 @@ class LlavaMetaModel:
         pretrain_mm_mlp_adapter = model_args.pretrain_mm_mlp_adapter
         mm_patch_merge_type = model_args.mm_patch_merge_type
         alpha = model_args.alpha
+        dual = model_args.dual
 
         self.config.mm_vision_tower = vision_tower
         self.config.alpha = alpha
+        self.config.dual = dual
 
         if self.get_vision_tower() is None:
             vision_tower = build_vision_tower(model_args)
@@ -164,10 +166,20 @@ class LlavaMetaForCausalLM(ABC):
         return self.get_model().get_vision_tower()
 
     def encode_images(self, images, bboxes):
-        image_features = self.get_model().get_vision_tower()(images)
-        image_features = self.get_model().mm_projector(image_features)
-        bbox_embeddings = self.get_model().bbox_projector(bboxes)
-        return image_features + bbox_embeddings
+        if type(self.get_model().get_vision_tower()) is torch.nn.ModuleList:
+            clip, alpha_clip = self.get_model().get_vision_tower()
+            clip_features = clip(images[0, :3, :, :].unsqueeze(0))
+            alpha_features = alpha_clip(images)
+            clip_features = self.get_model().mm_projector[0](clip_features)
+            alpha_features = self.get_model().mm_projector[1](alpha_features)
+            bbox_embeddings = self.get_model().bbox_projector(bboxes)
+            alpha_features += bbox_embeddings
+            return [clip_features, alpha_features]
+        else:
+            image_features = self.get_model().get_vision_tower()(images)
+            image_features = self.get_model().mm_projector(image_features)
+            bbox_embeddings = self.get_model().bbox_projector(bboxes)
+            return image_features + bbox_embeddings
 
     def prepare_inputs_labels_for_multimodal(
         self,
@@ -180,6 +192,7 @@ class LlavaMetaForCausalLM(ABC):
         image_sizes=None,
     ):
         vision_tower = self.get_vision_tower()
+        use_dual = type(vision_tower) is torch.nn.ModuleList
         if vision_tower is None or images is None or input_ids.shape[1] == 1:
             return (
                 input_ids,
@@ -206,7 +219,13 @@ class LlavaMetaForCausalLM(ABC):
                     concat_bbox = concat_bbox.to(self.device)
                 image_feature = self.encode_images(concat_images, concat_bbox)
                 split_sizes = [image.shape[0] for image in img]
-                image_feature = torch.split(image_feature, split_sizes, dim=0)
+                if type(image_feature) is list:
+                    image_feature = [
+                        image_feature[0],
+                        *torch.split(image_feature[1], split_sizes, dim=0),
+                    ]
+                else:
+                    image_feature = torch.split(image_feature, split_sizes, dim=0)
                 mm_patch_merge_type = getattr(
                     self.config, "mm_patch_merge_type", "flat"
                 )
