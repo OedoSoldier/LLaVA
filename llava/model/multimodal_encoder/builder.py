@@ -19,17 +19,17 @@ def build_vision_tower(vision_tower_cfg, **kwargs):
         or vision_tower.startswith("laion")
         or "ShareGPT4V" in vision_tower
     ):
-        if use_s2:
-            return CLIPVisionTowerS2(vision_tower, args=vision_tower_cfg, **kwargs)
-        if use_alpha:
-            return AlphaCLIPVisionTower(vision_tower, args=vision_tower_cfg, **kwargs)
-        elif use_dual:
+        if use_dual:
             return torch.nn.ModuleList(
                 [
                     CLIPVisionTower(vision_tower, args=vision_tower_cfg, **kwargs),
                     AlphaCLIPVisionTower(vision_tower, args=vision_tower_cfg, **kwargs),
                 ]
             )
+        if use_s2:
+            return CLIPVisionTowerS2(vision_tower, args=vision_tower_cfg, **kwargs)
+        if use_alpha:
+            return AlphaCLIPVisionTower(vision_tower, args=vision_tower_cfg, **kwargs)
         else:
             return CLIPVisionTower(vision_tower, args=vision_tower_cfg, **kwargs)
 

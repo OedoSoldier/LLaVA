@@ -84,7 +84,9 @@ class LlavaMetaModel:
         self.config.mm_projector_type = getattr(
             model_args, "mm_projector_type", "linear"
         )
-        self.config.mm_hidden_size = vision_tower.hidden_size
+        self.config.mm_hidden_size = (
+            vision_tower.hidden_size if not dual else vision_tower[0].hidden_size
+        )
         self.config.mm_vision_select_layer = mm_vision_select_layer
         self.config.mm_vision_select_feature = mm_vision_select_feature
         self.config.mm_patch_merge_type = mm_patch_merge_type
@@ -117,9 +119,17 @@ class LlavaMetaModel:
                     if keyword in k
                 }
 
-            self.mm_projector.load_state_dict(
-                get_w(mm_projector_weights, "mm_projector")
-            )
+            if dual:
+                self.mm_projector[0].load_state_dict(
+                    get_w(mm_projector_weights, "mm_projector.0")
+                )
+                self.mm_projector[1].load_state_dict(
+                    get_w(mm_projector_weights, "mm_projector.1")
+                )
+            else:
+                self.mm_projector.load_state_dict(
+                    get_w(mm_projector_weights, "mm_projector")
+                )
             self.bbox_projector.load_state_dict(
                 get_w(mm_projector_weights, "bbox_projector")
             )
@@ -168,8 +178,8 @@ class LlavaMetaForCausalLM(ABC):
     def encode_images(self, images, bboxes):
         if type(self.get_model().get_vision_tower()) is torch.nn.ModuleList:
             clip, alpha_clip = self.get_model().get_vision_tower()
-            clip_features = clip(images[0, :3, :, :].unsqueeze(0))
-            alpha_features = alpha_clip(images)
+            clip_features = clip(images[[0], :3, :, :])
+            alpha_features = alpha_clip(images[1:, :, :, :])
             clip_features = self.get_model().mm_projector[0](clip_features)
             alpha_features = self.get_model().mm_projector[1](alpha_features)
             bbox_embeddings = self.get_model().bbox_projector(bboxes)
@@ -218,7 +228,7 @@ class LlavaMetaForCausalLM(ABC):
                     concat_images = concat_images.to(self.device)
                     concat_bbox = concat_bbox.to(self.device)
                 image_feature = self.encode_images(concat_images, concat_bbox)
-                split_sizes = [image.shape[0] for image in img]
+                split_sizes = [image.shape[0] for image in img][1:]
                 if type(image_feature) is list:
                     image_feature = [
                         image_feature[0],

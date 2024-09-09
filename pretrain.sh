@@ -10,7 +10,7 @@ MODEL_VERSION=vicuna-7b-v1.5
 PROMPT_VERSION=plain
 ########### DO NOT CHANGE ###########
 
-PYTHONPATH=~/workspace/LLaVA_obj/LLaVA nohup deepspeed llava/train/train_mem.py \
+PYTHONPATH=~/workspace/LLaVA_obj/LLaVA nohup deepspeed --include localhost:2 llava/train/train_mem.py \
     --deepspeed scripts/zero2.json \
     --model_name_or_path ./checkpoints/$MODEL_VERSION \
     --version $PROMPT_VERSION \
@@ -22,10 +22,9 @@ PYTHONPATH=~/workspace/LLaVA_obj/LLaVA nohup deepspeed llava/train/train_mem.py 
     --mm_vision_select_layer -2 \
     --mm_use_im_start_end False \
     --mm_use_im_patch_token False \
-    --mm_vision_select_feature cls \
-    --alpha True \
+    --dual True \
     --bf16 True \
-    --output_dir ./checkpoints/llava-$MODEL_VERSION-pretrain \
+    --output_dir ./checkpoints/llava-$MODEL_VERSION-pretrain_dual \
     --num_train_epochs 1 \
     --per_device_train_batch_size 16 \
     --per_device_eval_batch_size 1 \

@@ -73,6 +73,7 @@ class ModelArguments:
     mm_vision_select_layer: Optional[int] = field(
         default=-1
     )  # default to the last layer
+    dual: Optional[bool] = field(default=False)
     alpha: Optional[bool] = field(default=False)
     pretrain_mm_mlp_adapter: Optional[str] = field(default=None)
     mm_projector_type: Optional[str] = field(default="linear")
@@ -661,7 +662,7 @@ def preprocess_plain(
     for source in sources:
         assert len(source) == 2
         assert DEFAULT_IMAGE_TOKEN in source[0]["value"]
-        image_token_num = source[0]["value"].count(DEFAULT_IMAGE_TOKEN) + 1
+        image_token_num = source[0]["value"].count(DEFAULT_IMAGE_TOKEN)
         source[0]["value"] = DEFAULT_IMAGE_TOKEN * image_token_num
         conversation = (
             source[0]["value"]
@@ -849,17 +850,21 @@ class LazySupervisedDataset(Dataset):
         bboxes = []
         # segs.append(image.copy())
         h, w = image.height, image.width
+        segs.append(image.copy())
         for i in ids:
             cur_seg = seg == i
             mask = Image.fromarray(np.uint8(cur_seg * 255), "L")
             bbox = mask.getbbox()
-            bbox = [
-                bbox[0] / w,
-                bbox[1] / h,
-                (bbox[2] - bbox[0]) / w,
-                (bbox[3] - bbox[1]) / h,
-                np.sum(cur_seg) / (h * w),
-            ]  # normalize bbox, (x, y, w, h, area)
+            if bbox is None:
+                bbox = [0, 0, 1, 1, 1]
+            else:
+                bbox = [
+                    bbox[0] / w,
+                    bbox[1] / h,
+                    (bbox[2] - bbox[0]) / w,
+                    (bbox[3] - bbox[1]) / h,
+                    np.sum(cur_seg) / (h * w),
+                ]  # normalize bbox, (x, y, w, h, area)
             bboxes.append(torch.tensor(bbox))
             temp = image.copy()
             temp.putalpha(mask)
@@ -907,7 +912,8 @@ class LazySupervisedDataset(Dataset):
         length_list = []
         for sample in self.list_data_dict:
             img_tokens = (
-                128 * sample["conversations"][0]["values"].count(DEFAULT_IMAGE_TOKEN)
+                128
+                * (sample["conversations"][0]["values"].count(DEFAULT_IMAGE_TOKEN) + 1)
                 if "image" in sample
                 else 0
             )
@@ -957,7 +963,8 @@ class LazySupervisedDataset(Dataset):
             # image does not exist in the data, but the model is multimodal
             crop_size = self.data_args.image_processor.crop_size
             data_dict["image"] = [
-                torch.zeros(4, crop_size["height"], crop_size["width"])
+                torch.zeros(4, crop_size["height"], crop_size["width"]),
+                torch.zeros(4, crop_size["height"], crop_size["width"]),
             ]
             data_dict["bbox"] = [torch.zeros(5)]
         return data_dict
@@ -1168,7 +1175,11 @@ def train(attn_implementation=None):
             device=training_args.device,
         )
 
-        data_args.image_processor = vision_tower.image_processor
+        data_args.image_processor = (
+            vision_tower.image_processor
+            if not type(vision_tower) is torch.nn.ModuleList
+            else vision_tower[1].image_processor
+        )
         data_args.is_multimodal = True
 
         model.config.image_aspect_ratio = data_args.image_aspect_ratio

@@ -12,22 +12,22 @@ MODEL_VERSION="vicuna-7b-v1.5"
 # MODEL_VERSION="llama-2-7b-chat"
 ################## LLaMA-2 ##################
 
-PYTHONPATH=~/workspace/LLaVA_obj/LLaVA nohup deepspeed llava/train/train_mem.py \
-    --deepspeed scripts/zero2_offload.json \
+PYTHONPATH=~/workspace/LLaVA_obj/LLaVA nohup deepspeed --include localhost:2 llava/train/train_mem.py \
+    --lora_enable True \
+    --deepspeed scripts/zero2.json \
     --model_name_or_path ./checkpoints/$MODEL_VERSION \
     --version $PROMPT_VERSION \
     --data_path ../../data/LLaVA-Finetune/llava_v1_5_mix665k_cleaned.json \
     --image_folder ../../data/LLaVA-Finetune \
     --vision_tower openai/clip-vit-large-patch14-336 \
-    --pretrain_mm_mlp_adapter ./checkpoints/llava-$MODEL_VERSION-pretrain/mm_projector.bin \
+    --pretrain_mm_mlp_adapter ./checkpoints/llava-$MODEL_VERSION-pretrain_dual/mm_projector.bin \
     --mm_projector_type mlp2x_gelu \
     --mm_vision_select_layer -2 \
     --mm_use_im_start_end False \
     --mm_use_im_patch_token False \
-    --mm_vision_select_feature cls \
-    --alpha True \
+    --dual True \
     --bf16 True \
-    --output_dir ./checkpoints/llava-$MODEL_VERSION-finetune \
+    --output_dir ./checkpoints/llava-$MODEL_VERSION-finetune_lora_dual \
     --num_train_epochs 1 \
     --per_device_train_batch_size 4 \
     --per_device_eval_batch_size 1 \
@@ -48,4 +48,3 @@ PYTHONPATH=~/workspace/LLaVA_obj/LLaVA nohup deepspeed llava/train/train_mem.py 
     --dataloader_num_workers 4 \
     --report_to wandb \
     > 2.log.out 2>&1 &
-    # --lora_enable True \
