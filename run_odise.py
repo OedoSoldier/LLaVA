@@ -52,11 +52,11 @@ import math
 parser = argparse.ArgumentParser()
 parser.add_argument("--num-chunks", type=int, default=1)
 parser.add_argument("--chunk-idx", type=int, default=0)
-parser.add_argument("--meta-path", type=str, default=None)
+parser.add_argument("--data-path", type=str, default=None)
 parser.add_argument("--image-folder", type=str, default=None)
 args = parser.parse_args()
 
-meta = args.meta_path
+meta = args.data_path
 # data = [json.loads(q) for q in open(meta, "r")]
 # data = json.load(open(meta, "r"))
 if meta.endswith(".jsonl"):
