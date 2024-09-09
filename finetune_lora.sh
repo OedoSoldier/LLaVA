@@ -13,8 +13,7 @@ MODEL_VERSION="vicuna-7b-v1.5"
 ################## LLaMA-2 ##################
 
 PYTHONPATH=~/workspace/LLaVA_obj/LLaVA nohup deepspeed llava/train/train_mem.py \
-    --deepspeed scripts/zero2.json \
-    --lora_enable True \
+    --deepspeed scripts/zero2_offload.json \
     --model_name_or_path ./checkpoints/$MODEL_VERSION \
     --version $PROMPT_VERSION \
     --data_path ../../data/LLaVA-Finetune/llava_v1_5_mix665k_cleaned.json \
@@ -28,11 +27,11 @@ PYTHONPATH=~/workspace/LLaVA_obj/LLaVA nohup deepspeed llava/train/train_mem.py 
     --mm_vision_select_feature cls \
     --alpha True \
     --bf16 True \
-    --output_dir ./checkpoints/llava-$MODEL_VERSION-finetune_lora \
+    --output_dir ./checkpoints/llava-$MODEL_VERSION-finetune \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 2 \
+    --per_device_train_batch_size 4 \
     --per_device_eval_batch_size 1 \
-    --gradient_accumulation_steps 8 \
+    --gradient_accumulation_steps 4 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
     --save_steps 50000 \
@@ -49,3 +48,4 @@ PYTHONPATH=~/workspace/LLaVA_obj/LLaVA nohup deepspeed llava/train/train_mem.py 
     --dataloader_num_workers 4 \
     --report_to wandb \
     > 2.log.out 2>&1 &
+    # --lora_enable True \

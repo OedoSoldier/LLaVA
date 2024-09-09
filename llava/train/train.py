@@ -752,7 +752,8 @@ class LazySupervisedDataset(Dataset):
         data_args: DataArguments,
     ):
         super(LazySupervisedDataset, self).__init__()
-        list_data_dict = json.load(open(data_path, "r"))
+        with open(data_path, "r") as f:
+            list_data_dict = json.load(f)
 
         rank0_print("Formatting inputs...Skip in lazy mode")
         self.tokenizer = tokenizer
@@ -849,18 +850,21 @@ class LazySupervisedDataset(Dataset):
         # segs.append(image.copy())
         h, w = image.height, image.width
         for i in ids:
-            mask = Image.fromarray(np.uint8((seg == i) * 255), "L")
+            cur_seg = seg == i
+            mask = Image.fromarray(np.uint8(cur_seg * 255), "L")
             bbox = mask.getbbox()
             bbox = [
                 bbox[0] / w,
                 bbox[1] / h,
-                (bbox[2] - bbox[0]) / h,
-                (bbox[3] - bbox[1]) / w,
-            ]  # normalize bbox
+                (bbox[2] - bbox[0]) / w,
+                (bbox[3] - bbox[1]) / h,
+                np.sum(cur_seg) / (h * w),
+            ]  # normalize bbox, (x, y, w, h, area)
             bboxes.append(torch.tensor(bbox))
             temp = image.copy()
             temp.putalpha(mask)
             segs.append(temp)
+        del seg
         image = segs
 
         if self.data_args.image_aspect_ratio == "pad":
@@ -955,7 +959,7 @@ class LazySupervisedDataset(Dataset):
             data_dict["image"] = [
                 torch.zeros(4, crop_size["height"], crop_size["width"])
             ]
-            data_dict["bbox"] = [torch.zeros(4)]
+            data_dict["bbox"] = [torch.zeros(5)]
         return data_dict
 
 

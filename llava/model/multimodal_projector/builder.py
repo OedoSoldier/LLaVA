@@ -51,4 +51,4 @@ def build_vision_projector(config, delay_load=False, **kwargs):
 
 
 def build_bbox_projector(config):
-    return nn.Linear(4, config.hidden_size)
+    return nn.Linear(5, config.hidden_size)

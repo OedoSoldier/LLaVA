@@ -237,7 +237,7 @@ class AlphaCLIPVisionTower(CLIPVisionTower):
             kernel_size=visual_encoder.embeddings.patch_embedding.kernel_size,
             stride=visual_encoder.embeddings.patch_embedding.stride,
             bias=False,
-        )
+        ).to(visual_encoder.embeddings.patch_embedding.weight.device)
         visual_encoder.embeddings.forward = types.MethodType(
             rewrited_forward, visual_encoder.embeddings
         )
@@ -247,7 +247,7 @@ class AlphaCLIPVisionTower(CLIPVisionTower):
             filename = wget.download(
                 "https://download.openxlab.org.cn/models/SunzeY/AlphaCLIP/weight//clip_l14_336_grit1m_fultune_8xe.pth"
             )
-        print(f"Loading pretrained model from {filename}")
+        print(f"Loading pretrained Alpha-CLIP model from {filename}")
 
         state_dict = torch.load("clip_l14@336_grit1m_fultune_8xe.pth")
         converted_dict = collections.OrderedDict()

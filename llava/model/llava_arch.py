@@ -190,7 +190,6 @@ class LlavaMetaForCausalLM(ABC):
                 labels,
             )
 
-        # list of sets to two lists
         images, bboxes = images
 
         if type(images) is list:
@@ -202,6 +201,9 @@ class LlavaMetaForCausalLM(ABC):
                     bbox = [x.view(1, 1, -1) if x.ndim == 1 else x for x in bbox]
                 concat_images = torch.cat([image for image in img], dim=0)
                 concat_bbox = torch.cat([box for box in bbox], dim=0)
+                if concat_images.device != self.device:
+                    concat_images = concat_images.to(self.device)
+                    concat_bbox = concat_bbox.to(self.device)
                 image_feature = self.encode_images(concat_images, concat_bbox)
                 split_sizes = [image.shape[0] for image in img]
                 image_feature = torch.split(image_feature, split_sizes, dim=0)
