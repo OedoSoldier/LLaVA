@@ -12,7 +12,7 @@ MODEL_VERSION="vicuna-7b-v1.5"
 # MODEL_VERSION="llama-2-7b-chat"
 ################## LLaMA-2 ##################
 
-PYTHONPATH=~/workspace/LLaVA_obj/LLaVA nohup deepspeed --include localhost:2 llava/train/train_mem.py \
+deepspeed --include localhost:0,1,2,3 llava/train/train_mem.py \
     --lora_enable True \
     --deepspeed scripts/zero2.json \
     --model_name_or_path ./checkpoints/$MODEL_VERSION \
@@ -29,9 +29,9 @@ PYTHONPATH=~/workspace/LLaVA_obj/LLaVA nohup deepspeed --include localhost:2 lla
     --bf16 True \
     --output_dir ./checkpoints/llava-$MODEL_VERSION-finetune_lora_dual \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 4 \
+    --per_device_train_batch_size 2 \
     --per_device_eval_batch_size 1 \
-    --gradient_accumulation_steps 4 \
+    --gradient_accumulation_steps 16 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
     --save_steps 50000 \
@@ -46,5 +46,4 @@ PYTHONPATH=~/workspace/LLaVA_obj/LLaVA nohup deepspeed --include localhost:2 lla
     --gradient_checkpointing True \
     --lazy_preprocess True \
     --dataloader_num_workers 4 \
-    --report_to wandb \
-    > 2.log.out 2>&1 &
+    --report_to wandb

@@ -10,7 +10,7 @@ MODEL_VERSION=vicuna-7b-v1.5
 PROMPT_VERSION=plain
 ########### DO NOT CHANGE ###########
 
-PYTHONPATH=~/workspace/LLaVA_obj/LLaVA nohup deepspeed --include localhost:2 llava/train/train_mem.py \
+deepspeed --include localhost:0,1,2,3 llava/train/train_mem.py \
     --deepspeed scripts/zero2.json \
     --model_name_or_path ./checkpoints/$MODEL_VERSION \
     --version $PROMPT_VERSION \
@@ -28,7 +28,7 @@ PYTHONPATH=~/workspace/LLaVA_obj/LLaVA nohup deepspeed --include localhost:2 lla
     --num_train_epochs 1 \
     --per_device_train_batch_size 16 \
     --per_device_eval_batch_size 1 \
-    --gradient_accumulation_steps 2 \
+    --gradient_accumulation_steps 4 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
     --save_steps 24000 \
@@ -43,4 +43,4 @@ PYTHONPATH=~/workspace/LLaVA_obj/LLaVA nohup deepspeed --include localhost:2 lla
     --gradient_checkpointing True \
     --dataloader_num_workers 4 \
     --lazy_preprocess True \
-    --report_to wandb > log.out 2>&1 & # --include localhost:0
+    --report_to wandb
