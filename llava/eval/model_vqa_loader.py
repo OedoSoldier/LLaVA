@@ -10,6 +10,8 @@ from llava.constants import (
     DEFAULT_IMAGE_TOKEN,
     DEFAULT_IM_START_TOKEN,
     DEFAULT_IM_END_TOKEN,
+    DEFAULT_OBJ_START_TOKEN,
+    DEFAULT_OBJ_END_TOKEN,
 )
 from llava.conversation import conv_templates, SeparatorStyle
 from llava.model.builder import load_pretrained_model
@@ -143,7 +145,7 @@ class CustomDataset(Dataset):
 
         segs = []
         bboxes = []
-        # segs.append(image.copy())
+        segs.append(image.copy())
         h, w = image.height, image.width
         for i in ids:
             cur_seg = seg == i
@@ -164,13 +166,19 @@ class CustomDataset(Dataset):
             temp.putalpha(mask)
             segs.append(temp)
 
-        qs = DEFAULT_IMAGE_TOKEN * len(ids) + "\n" + qs
-
         if self.model_config.mm_use_im_start_end:
-            qs = qs.replace(
-                DEFAULT_IMAGE_TOKEN,
-                DEFAULT_IM_START_TOKEN + DEFAULT_IMAGE_TOKEN + DEFAULT_IM_END_TOKEN,
+            qs = (
+                DEFAULT_IM_START_TOKEN
+                + DEFAULT_IMAGE_TOKEN
+                + DEFAULT_IM_END_TOKEN
+                + DEFAULT_OBJ_START_TOKEN
+                + DEFAULT_IMAGE_TOKEN * len(ids)
+                + DEFAULT_OBJ_END_TOKEN
+                + "\n"
+                + qs
             )
+        else:
+            qs = DEFAULT_IMAGE_TOKEN * (len(ids) + 1) + "\n" + qs
 
         conv = conv_templates[args.conv_mode].copy()
         conv.append_message(conv.roles[0], qs)

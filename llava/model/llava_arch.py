@@ -27,6 +27,8 @@ from llava.constants import (
     DEFAULT_IMAGE_PATCH_TOKEN,
     DEFAULT_IM_START_TOKEN,
     DEFAULT_IM_END_TOKEN,
+    DEFAULT_OBJ_START_TOKEN,
+    DEFAULT_OBJ_END_TOKEN,
 )
 
 from llava.mm_utils import get_anyres_image_grid_shape
@@ -120,19 +122,28 @@ class LlavaMetaModel:
                 }
 
             if dual:
-                self.mm_projector[0].load_state_dict(
-                    get_w(mm_projector_weights, "mm_projector.0")
-                )
-                self.mm_projector[1].load_state_dict(
-                    get_w(mm_projector_weights, "mm_projector.1")
-                )
+                if len(get_w(mm_projector_weights, "mm_projector.1")) > 0:
+                    self.mm_projector[0].load_state_dict(
+                        get_w(mm_projector_weights, "mm_projector.0")
+                    )
+                    self.mm_projector[1].load_state_dict(
+                        get_w(mm_projector_weights, "mm_projector.1")
+                    )
+                else:
+                    self.mm_projector[0].load_state_dict(
+                        get_w(mm_projector_weights, "mm_projector")
+                    )
+                    self.mm_projector[1].load_state_dict(
+                        get_w(mm_projector_weights, "mm_projector")
+                    )
             else:
                 self.mm_projector.load_state_dict(
                     get_w(mm_projector_weights, "mm_projector")
                 )
-            self.bbox_projector.load_state_dict(
-                get_w(mm_projector_weights, "bbox_projector")
-            )
+            if len(get_w(mm_projector_weights, "bbox_projector")) > 0:
+                self.bbox_projector.load_state_dict(
+                    get_w(mm_projector_weights, "bbox_projector")
+                )
 
 
 def unpad_image(tensor, original_size):
@@ -320,10 +331,10 @@ class LlavaMetaForCausalLM(ABC):
             image_features = [self.encode_images(images, bboxes)]
 
         # TODO: image start / end is not implemented here to support pretraining.
-        if getattr(self.config, "tune_mm_mlp_adapter", False) and getattr(
-            self.config, "mm_use_im_start_end", False
-        ):
-            raise NotImplementedError
+        # if getattr(self.config, "tune_mm_mlp_adapter", False) and getattr(
+        #     self.config, "mm_use_im_start_end", False
+        # ):
+        #     raise NotImplementedError
 
         # Let's just add dummy tensors if they do not exist,
         # it is a headache to deal with None all the time.
@@ -535,7 +546,13 @@ class LlavaMetaForCausalLM(ABC):
 
         if model_args.mm_use_im_start_end:
             num_new_tokens = tokenizer.add_tokens(
-                [DEFAULT_IM_START_TOKEN, DEFAULT_IM_END_TOKEN], special_tokens=True
+                [
+                    DEFAULT_IM_START_TOKEN,
+                    DEFAULT_IM_END_TOKEN,
+                    DEFAULT_OBJ_START_TOKEN,
+                    DEFAULT_OBJ_END_TOKEN,
+                ],
+                special_tokens=True,
             )
             self.resize_token_embeddings(len(tokenizer))
 
@@ -564,7 +581,7 @@ class LlavaMetaForCausalLM(ABC):
                     model_args.pretrain_mm_mlp_adapter, map_location="cpu"
                 )
                 embed_tokens_weight = mm_projector_weights["model.embed_tokens.weight"]
-                assert num_new_tokens == 2
+                assert num_new_tokens == 4
                 if input_embeddings.shape == embed_tokens_weight.shape:
                     input_embeddings[-num_new_tokens:] = embed_tokens_weight[
                         -num_new_tokens:
@@ -575,6 +592,7 @@ class LlavaMetaForCausalLM(ABC):
                     raise ValueError(
                         f"Unexpected embed_tokens_weight shape. Pretrained: {embed_tokens_weight.shape}. Current: {input_embeddings.shape}. Numer of new tokens: {num_new_tokens}."
                     )
+                print("embed_tokens_weight loaded.")
         elif model_args.mm_use_im_patch_token:
             if model_args.tune_mm_mlp_adapter:
                 for p in self.get_input_embeddings().parameters():

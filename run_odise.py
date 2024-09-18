@@ -407,7 +407,7 @@ def inference(image_paths, vocab, label_list, model_name):
                 with open(id_path, "w") as f:
                     json.dump(ids, f)
         # flush gpu mem
-        torch.cuda.empty_cache()
+        # torch.cuda.empty_cache()
 
 
 # input_paths = glob(os.path.expanduser("/home/wangsihan/workspace/coco2017/images/*.jpg"))

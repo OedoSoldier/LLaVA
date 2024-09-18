@@ -52,7 +52,7 @@ def main():
     # data = json.load(open(f"{FOLDER}/blip_laion_cc_sbu_558k.json", "r"))
     with open(DATA_PATH, "r") as f:
         data = [json.loads(line) for line in f]
-    data = data[103820:]
+    data = data
     print(len(data))
     with Pool(args.num_workers) as p:
         result = list(tqdm(p.imap(process_file, data), total=len(data)))
