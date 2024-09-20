@@ -75,4 +75,8 @@ def build_vision_projector(config, delay_load=False, **kwargs):
 
 
 def build_bbox_projector(config):
-    return nn.Linear(5, config.hidden_size)
+    # zero init
+    bbox_projector = nn.Linear(5, config.hidden_size)
+    bbox_projector.weight.data.zero_()
+    bbox_projector.bias.data.zero_()
+    return bbox_projector

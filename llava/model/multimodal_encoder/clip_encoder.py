@@ -198,8 +198,7 @@ def rewrited_forward(self, pixel_values: torch.FloatTensor) -> torch.Tensor:
     batch_size = pixel_values.shape[0]
     patch_embeds = self.patch_embedding(pixel_values)  # shape = [*, width, grid, grid]
 
-    alpha = mask_torch * 1.9231
-    patch_embeds = patch_embeds + self.patch_embedding_alpha(alpha)
+    patch_embeds = patch_embeds + self.patch_embedding_alpha(mask_torch)
     patch_embeds = patch_embeds.flatten(2).transpose(1, 2)
 
     class_embeds = self.class_embedding.expand(batch_size, 1, -1)
@@ -306,7 +305,7 @@ class AlphaCLIPVisionTower(CLIPVisionTower):
 
         if len(self.image_processor.image_mean) < 4:
             self.image_processor.image_mean.append(0.5)
-            self.image_processor.image_std.append(0.5)
+            self.image_processor.image_std.append(0.26)
         self.image_processor.do_convert_rgb = False
         # -----------------------------------------
         self.vision_tower.requires_grad_(False)
