@@ -43,6 +43,20 @@ def get_chunk(lst, n, k):
     return chunks[k]
 
 
+def expand2square(pil_img, background_color):
+    width, height = pil_img.size
+    if width == height:
+        return pil_img
+    elif width > height:
+        result = Image.new(pil_img.mode, (width, width), background_color)
+        result.paste(pil_img, (0, (width - height) // 2))
+        return result
+    else:
+        result = Image.new(pil_img.mode, (height, height), background_color)
+        result.paste(pil_img, ((height - width) // 2, 0))
+        return result
+
+
 # Custom dataset class
 class CustomDataset(Dataset):
     def __init__(
@@ -53,6 +67,7 @@ class CustomDataset(Dataset):
         self.tokenizer = tokenizer
         self.image_processor = image_processor
         self.model_config = model_config
+        self.image_aspect_ratio = getattr(self.model_config, "image_aspect_ratio", None)
         self._load_seg_id()
 
     @staticmethod
@@ -137,6 +152,10 @@ class CustomDataset(Dataset):
         # image = _apply_exif_orientation(image)
         image = CustomDataset._apply_exif_orientation(image)
         image = image.convert("RGBA")
+        if self.image_aspect_ratio == "pad":
+            image = expand2square(
+                image, tuple(int(x * 255) for x in self.image_processor.image_mean)
+            )
         image_size = image.size
         seg = np.load(seg_file)["seg"]
         if len(ids) == 0:
@@ -150,6 +169,8 @@ class CustomDataset(Dataset):
         for i in ids:
             cur_seg = seg == i
             mask = Image.fromarray(np.uint8(cur_seg * 255), "L")
+            if self.image_aspect_ratio == "pad":
+                mask = expand2square(mask, 0)
             bbox = mask.getbbox()
             if bbox is None:
                 bbox = [0, 0, 1, 1, 1]
@@ -178,7 +199,7 @@ class CustomDataset(Dataset):
                 + qs
             )
         else:
-            qs = DEFAULT_IMAGE_TOKEN * (len(ids) + 1) + "\n" + qs
+            qs = DEFAULT_IMAGE_TOKEN + "\n" + DEFAULT_IMAGE_TOKEN * len(ids) + "\n" + qs
 
         conv = conv_templates[args.conv_mode].copy()
         conv.append_message(conv.roles[0], qs)

@@ -46,7 +46,12 @@ from torchvision import transforms
 import json
 import re
 import math
+from PIL import ImageFile
 
+# ImageFile.LOAD_TRUNCATED_IMAGES = True
+
+# set warning level
+warnings.filterwarnings("ignore", category=FutureWarning)
 
 # 添加start,end 的 arguments
 parser = argparse.ArgumentParser()
@@ -342,6 +347,7 @@ class ImageDataset(Dataset):
 
     def __getitem__(self, idx):
         img_path = self.image_paths[idx]
+
         if img_path.endswith(".gif"):
             img = Image.open(img_path)
             img.seek(0)
@@ -380,32 +386,39 @@ def inference(image_paths, vocab, label_list, model_name):
     inference_model.eval()
     with torch.no_grad():
         for inputs, paths in tqdm(dataloader):
+            if None in inputs:
+                print(f"Error: {paths}")
+                continue
             inputs = inputs.cuda()
             predictions, _ = demo.run_on_image(inputs)
             for idx, prediction in enumerate(predictions):
-                seg, info = prediction["panoptic_seg"]
-                filename = paths[
-                    idx
-                ]  # os.path.join(output_path, os.path.basename(paths[idx]))
-                seg_file = re.sub(r"\.(jpg|jpeg|png|bmp|gif)$", ".npz", filename)
-                info_file = seg_file.replace("npz", "json")
-                with open(info_file, "w") as f:
-                    json.dump(info, f, indent=4)
-                seg = seg.cpu().numpy()
-                np.savez_compressed(seg_file, seg=seg)
-                id_path = info_file.replace(".json", "_id.json")
-                ids = [0] + [j["id"] for j in info]
-                w, h = seg.shape
-                new_ids = []
-                for id in ids:
-                    mask = seg == id
-                    total_pixels = np.sum(mask) / (w * h)
-                    if id == 0 and total_pixels <= 0.1:
-                        continue
-                    new_ids.append(id)
-                ids = new_ids
-                with open(id_path, "w") as f:
-                    json.dump(ids, f)
+                try:
+                    seg, info = prediction["panoptic_seg"]
+                    filename = paths[
+                        idx
+                    ]  # os.path.join(output_path, os.path.basename(paths[idx]))
+                    seg_file = re.sub(r"\.(jpg|jpeg|png|bmp|gif)$", ".npz", filename)
+                    info_file = seg_file.replace("npz", "json")
+                    with open(info_file, "w") as f:
+                        json.dump(info, f, indent=4)
+                    seg = seg.cpu().numpy()
+                    np.savez_compressed(seg_file, seg=seg)
+                    id_path = info_file.replace(".json", "_id.json")
+                    ids = [0] + [j["id"] for j in info]
+                    w, h = seg.shape
+                    new_ids = []
+                    for id in ids:
+                        mask = seg == id
+                        total_pixels = np.sum(mask) / (w * h)
+                        if id == 0 and total_pixels <= 0.1:
+                            continue
+                        new_ids.append(id)
+                    ids = new_ids
+                    with open(id_path, "w") as f:
+                        json.dump(ids, f)
+                except:
+                    print(f"Error: {paths[idx]}")
+                    continue
         # flush gpu mem
         # torch.cuda.empty_cache()
 

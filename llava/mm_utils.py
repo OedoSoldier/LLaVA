@@ -179,12 +179,12 @@ def process_images(images, image_processor, model_cfg):
     new_images = []
     if image_aspect_ratio == "pad":
         for image in images:
-            image = expand2square(
-                image, tuple(int(x * 255) for x in image_processor.image_mean)
-            )
-            image = image_processor.preprocess(image, return_tensors="pt")[
-                "pixel_values"
-            ][0]
+            # image = expand2square(
+            #     image, tuple(int(x * 255) for x in image_processor.image_mean)
+            # )
+            image = image_processor.preprocess(
+                image, return_tensors="pt", input_data_format="channels_last"
+            )["pixel_values"][0]
             new_images.append(image)
     elif image_aspect_ratio == "anyres":
         for image in images:
