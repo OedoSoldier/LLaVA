@@ -10,7 +10,8 @@ for IDX in $(seq 0 $((CHUNKS-1))); do
         --data-path /home/wangsihan/workspace/LLaVA_obj/LLaVA/playground/data/eval/MME/llava_mme.jsonl \
         --image-folder /home/wangsihan/workspace/LLaVA_obj/LLaVA/playground/data/eval/MME/MME_Benchmark_release_version \
         --num-chunks $CHUNKS \
-        --chunk-idx $IDX &
+        --chunk-idx $IDX \
+        --force &
 done
 
 wait

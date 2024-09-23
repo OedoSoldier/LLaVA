@@ -59,6 +59,7 @@ parser.add_argument("--num-chunks", type=int, default=1)
 parser.add_argument("--chunk-idx", type=int, default=0)
 parser.add_argument("--data-path", type=str, default=None)
 parser.add_argument("--image-folder", type=str, default=None)
+parser.add_argument("--force", action="store_true", default=False)
 args = parser.parse_args()
 
 meta = args.data_path
@@ -72,14 +73,18 @@ image_folder = args.image_folder
 input_paths = []
 for i in data:
     if "image" in i.keys():
-        image_path = os.path.join(image_folder, i["image"])
-        seg_path = re.sub(r"\.(jpg|jpeg|png|bmp|gif)$", ".npz", image_path)
-        id_path = seg_path.replace(".npz", "_id.json")
-        if not (os.path.exists(id_path) and os.path.exists(seg_path)):
-            if os.path.exists(image_path):
-                input_paths.append(image_path)
-            else:
-                print(f"{image_path} not exists")
+        if args.force:
+            image_path = os.path.join(image_folder, i["image"])
+            input_paths.append(image_path)
+        else:
+            image_path = os.path.join(image_folder, i["image"])
+            seg_path = re.sub(r"\.(jpg|jpeg|png|bmp|gif)$", ".npz", image_path)
+            id_path = seg_path.replace(".npz", "_id.json")
+            if not (os.path.exists(id_path) and os.path.exists(seg_path)):
+                if os.path.exists(image_path):
+                    input_paths.append(image_path)
+                else:
+                    print(f"{image_path} not exists")
 # 去重
 input_paths = list(set(input_paths))
 print(len(input_paths))
@@ -100,9 +105,12 @@ def get_chunk(lst, n, k):
 
 
 input_paths = get_chunk(input_paths, args.num_chunks, args.chunk_idx)
-print(len(input_paths))
-# exit()
-# warnings.filterwarnings("ignore")
+# print(len(input_paths))
+
+print(
+    f"Processing chunk {args.chunk_idx}/{args.num_chunks}, chunck size: {len(input_paths)}"
+)
+exit()
 
 setup_logger()
 logger = setup_logger(name="odise")
@@ -386,13 +394,10 @@ def inference(image_paths, vocab, label_list, model_name):
     inference_model.eval()
     with torch.no_grad():
         for inputs, paths in tqdm(dataloader):
-            if None in inputs:
-                print(f"Error: {paths}")
-                continue
-            inputs = inputs.cuda()
-            predictions, _ = demo.run_on_image(inputs)
-            for idx, prediction in enumerate(predictions):
-                try:
+            try:
+                inputs = inputs.cuda()
+                predictions, _ = demo.run_on_image(inputs)
+                for idx, prediction in enumerate(predictions):
                     seg, info = prediction["panoptic_seg"]
                     filename = paths[
                         idx
@@ -416,9 +421,9 @@ def inference(image_paths, vocab, label_list, model_name):
                     ids = new_ids
                     with open(id_path, "w") as f:
                         json.dump(ids, f)
-                except:
-                    print(f"Error: {paths[idx]}")
-                    continue
+            except:
+                print(f"Error: {paths}")
+                continue
         # flush gpu mem
         # torch.cuda.empty_cache()
 
