@@ -158,9 +158,9 @@ class CustomDataset(Dataset):
             )
         image_size = image.size
         seg = np.load(seg_file)["seg"]
-        if len(ids) == 0:
-            ids = [0]
-            seg = np.zeros_like(seg)
+        # if len(ids) == 0:
+        #     ids = [0]
+        #     seg = np.zeros_like(seg)
 
         segs = []
         bboxes = []

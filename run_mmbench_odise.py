@@ -46,7 +46,10 @@ from torchvision import transforms
 import json
 import re
 import math
-from PIL import ImageFile
+import pandas as pd
+
+from io import BytesIO
+import base64
 
 # ImageFile.LOAD_TRUNCATED_IMAGES = True
 
@@ -164,16 +167,19 @@ def build_demo_classes_and_metadata(vocab, label_list):
     return demo_classes, demo_metadata
 
 
-def load_img(img_path, aug):
-    try:
-        if img_path.endswith(".gif"):
-            img = Image.open(img_path)
-            img.seek(0)
-            img = utils.convert_PIL_to_numpy(img, format="RGB")
-        else:
-            img = utils.read_image(img_path, format="RGB")
-    except:
-        print(f"Error: {img_path}")
+def load_img(image, aug):
+    # try:
+    #     if img_path.endswith(".gif"):
+    #         img = Image.open(img_path)
+    #         img.seek(0)
+    #         img = utils.convert_PIL_to_numpy(img, format="RGB")
+    #     else:
+    #         img = utils.read_image(img_path, format="RGB")
+    # except:
+    #     print(f"Error: {img_path}")
+    img = Image.open(BytesIO(base64.b64decode(image)))
+    img = img.convert("RGB")
+    img = np.asarray(img)
     height, width = img.shape[:2]
     aug_input = T.AugInput(img, sem_seg=None)
     aug(aug_input)
@@ -183,14 +189,14 @@ def load_img(img_path, aug):
     return [{"image": image, "height": height, "width": width}]
 
 
-def inference(image_paths, model, aug):
+def inference(questions, model, aug, save_dir):
     with torch.no_grad():
-        for image_path in tqdm(image_paths):
-            inputs = load_img(image_path, aug)
+        for index, row in tqdm(questions.iterrows(), total=len(questions)):
+            inputs = load_img(row["image"], aug)
             with autocast("cuda"):
                 predictions = model(inputs)
             seg, info = predictions[0]["panoptic_seg"]
-            filename = image_path
+            filename = os.path.join(save_dir, str(row["index"]) + ".jpg")
             seg_file = re.sub(r"\.(jpg|jpeg|png|bmp|gif)$", ".npz", filename)
             info_file = seg_file.replace("npz", "json")
             with open(info_file, "w") as f:
@@ -238,38 +244,31 @@ def get_chunk(lst, n, k):
     return lst[chunk_start[k] : chunk_end[k]]
 
 
-def load_data(args):
-    meta = args.data_path
-    # data = [json.loads(q) for q in open(meta, "r")]
-    # data = json.load(open(meta, "r"))
-    if meta.endswith(".jsonl"):
-        data = [json.loads(q) for q in open(meta, "r")]
-    else:
-        data = json.load(open(meta, "r"))
-    image_folder = args.image_folder
-    new_data = []
-    for i in data:
-        if "image" in i.keys():
-            new_data.append(os.path.join(image_folder, i["image"]))
-    data = new_data
-    data = list(set(data))
+def main(args):
+    # input_paths = load_data(args)
+    questions = pd.read_table(os.path.expanduser(args.data_path))
+    filename = os.path.basename(args.data_path).split(".")[0]
+    image_folder = os.path.dirname(args.data_path)
+    save_dir = os.path.join(image_folder, "images", filename)
+    if not os.path.exists(save_dir):
+        os.makedirs(save_dir)
+    input_paths = []
+    for index, row in tqdm(questions.iterrows(), total=len(questions)):
+        filename = os.path.join(save_dir, str(row["index"]) + ".jpg")
+        seg_path = re.sub(r"\.(jpg|jpeg|png|bmp|gif)$", ".npz", filename)
+        id_path = seg_path.replace(".npz", "_id.json")
+        if not (os.path.exists(id_path) and os.path.exists(seg_path)):
+            input_paths.append(row["index"])
 
-    input_paths = check_exists(args.force, data)
-    print(len(input_paths))
     if len(input_paths) == 0:
         print("All images are processed")
         exit()
-    input_paths = get_chunk(input_paths, args.num_chunks, args.chunk_idx)
-    # print(len(input_paths))
 
+    input_paths = get_chunk(input_paths, args.num_chunks, args.chunk_idx)
     print(
         f"Processing chunk {args.chunk_idx}/{args.num_chunks}, chunck size: {len(input_paths)}"
     )
-    return input_paths
-
-
-def main(args):
-    input_paths = load_data(args)
+    questions = questions[questions["index"].isin(input_paths)]
 
     model, aug = load_odise()
 
@@ -290,7 +289,7 @@ def main(args):
 
     # demo = VisualizationDemo(inference_model, demo_metadata, aug)
     inference_model.eval()
-    inference(input_paths, inference_model, aug)
+    inference(questions, inference_model, aug, save_dir)
 
 
 if __name__ == "__main__":
@@ -299,7 +298,6 @@ if __name__ == "__main__":
     parser.add_argument("--num-chunks", type=int, default=1)
     parser.add_argument("--chunk-idx", type=int, default=0)
     parser.add_argument("--data-path", type=str, default=None)
-    parser.add_argument("--image-folder", type=str, default=None)
     parser.add_argument("--force", action="store_true", default=False)
     args = parser.parse_args()
     main(args)
