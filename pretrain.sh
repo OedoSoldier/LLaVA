@@ -2,7 +2,7 @@
 
 # Uncomment and set the following variables correspondingly to run this script:
 
-MODEL_VERSION=vicuna-7b-v1.5
+MODEL_VERSION=vicuna-13b-v1.5
 # MODEL_VERSION=llama-2-7b-chat
 
 ########### DO NOT CHANGE ###########
@@ -27,9 +27,9 @@ deepspeed llava/train/train_mem.py \
     --bf16 True \
     --output_dir ./checkpoints/llava-$MODEL_VERSION-pretrain_dual \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 16 \
+    --per_device_train_batch_size 4 \
     --per_device_eval_batch_size 1 \
-    --gradient_accumulation_steps 2 \
+    --gradient_accumulation_steps 8 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
     --save_steps 24000 \
@@ -44,4 +44,4 @@ deepspeed llava/train/train_mem.py \
     --gradient_checkpointing True \
     --dataloader_num_workers 4 \
     --lazy_preprocess True \
-    --report_to wandb
+    --report_to tensorboard

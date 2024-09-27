@@ -4,7 +4,7 @@
 
 ################## VICUNA ##################
 PROMPT_VERSION=v1
-MODEL_VERSION="vicuna-7b-v1.5"
+MODEL_VERSION="vicuna-13b-v1.5"
 ################## VICUNA ##################
 
 ################## LLaMA-2 ##################
@@ -31,9 +31,9 @@ deepspeed llava/train/train_mem.py \
     --bf16 True \
     --output_dir ./checkpoints/llava-$MODEL_VERSION-finetune_dual_lora \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 8 \
+    --per_device_train_batch_size 2 \
     --per_device_eval_batch_size 1 \
-    --gradient_accumulation_steps 2 \
+    --gradient_accumulation_steps 8 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
     --save_steps 50000 \
@@ -48,4 +48,4 @@ deepspeed llava/train/train_mem.py \
     --gradient_checkpointing True \
     --dataloader_num_workers 4 \
     --lazy_preprocess True \
-    --report_to wandb
+    --report_to tensorboard
