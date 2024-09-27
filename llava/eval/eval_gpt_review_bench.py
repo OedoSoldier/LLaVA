@@ -10,9 +10,9 @@ import httpx
 
 NUM_SECONDS_TO_SLEEP = 0.5
 
-endpoint = os.getenv("ENDPOINT_URL", "https://gpt-4-wsh.openai.azure.com/")
-deployment = os.getenv("DEPLOYMENT_NAME", "gpt-4")
-key = os.getenv("OPENAI_API_KEY", "f3ad8e3bfe354968aff85db3354a2537")
+endpoint = os.getenv("ENDPOINT_URL")
+deployment = os.getenv("DEPLOYMENT_NAME")
+key = os.getenv("OPENAI_API_KEY")
 
 NUM_SECONDS_TO_SLEEP = 0.5
 

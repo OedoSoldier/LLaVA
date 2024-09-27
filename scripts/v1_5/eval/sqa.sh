@@ -1,6 +1,6 @@
 #!/bin/bash
 
-python llava/eval/model_vqa_science \
+python llava/eval/model_vqa_science.py \
     --model-path checkpoints/llava-vicuna-7b-v1.5-finetune_dual_merged \
     --question-file ./playground/data/eval/scienceqa/llava_test_CQM-A.json \
     --image-folder ./playground/data/eval/scienceqa/images/test \
