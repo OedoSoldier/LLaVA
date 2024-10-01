@@ -1,11 +1,11 @@
 #!/bin/bash
 
-SPLIT="mmbench_dev_cn_20231003"
+SPLIT="mmbench_dev_20230712"
 
 python llava/eval/model_vqa_mmbench.py \
-    --model-path checkpoints/llava-vicuna-7b-v1.5-finetune_dual_merged \
+    --model-path checkpoints/llava-vicuna-13b-v1.5-finetune_dual_merged \
     --question-file ./playground/data/eval/mmbench/$SPLIT.tsv \
-    --answers-file ./playground/data/eval/mmbench/answers/$SPLIT/llava-vicuna-7b-v1.5-finetune_dual_merged.jsonl \
+    --answers-file ./playground/data/eval/mmbench/answers/$SPLIT/llava-vicuna-13b-v1.5-finetune_dual_merged.jsonl \
     --single-pred-prompt \
     --temperature 0 \
     --conv-mode vicuna_v1
@@ -16,4 +16,4 @@ python scripts/convert_mmbench_for_submission.py \
     --annotation-file ./playground/data/eval/mmbench/$SPLIT.tsv \
     --result-dir ./playground/data/eval/mmbench/answers/$SPLIT \
     --upload-dir ./playground/data/eval/mmbench/answers_upload/$SPLIT \
-    --experiment llava-vicuna-7b-v1.5-finetune_dual_merged
+    --experiment llava-vicuna-13b-v1.5-finetune_dual_merged

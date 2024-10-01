@@ -12,7 +12,7 @@ MODEL_VERSION="vicuna-13b-v1.5"
 # MODEL_VERSION="llama-2-7b-chat"
 ################## LLaMA-2 ##################
 
-deepspeed llava/train/train_mem.py \
+deepspeed --include localhost:0,1,2,3 llava/train/train_mem.py \
     --deepspeed scripts/zero2.json \
     --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-5 --bbox_projector_lr 2e-5 \
     --model_name_or_path ./checkpoints/$MODEL_VERSION \
@@ -31,7 +31,7 @@ deepspeed llava/train/train_mem.py \
     --bf16 True \
     --output_dir ./checkpoints/llava-$MODEL_VERSION-finetune_dual_lora \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 2 \
+    --per_device_train_batch_size 4 \
     --per_device_eval_batch_size 1 \
     --gradient_accumulation_steps 8 \
     --evaluation_strategy "no" \

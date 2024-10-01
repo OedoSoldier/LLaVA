@@ -7,8 +7,8 @@ CHUNKS=${#GPULIST[@]}
 
 for IDX in $(seq 0 $((CHUNKS-1))); do
     CUDA_VISIBLE_DEVICES=${GPULIST[$IDX]} python run_odise.py \
-        --data-path ./playground/data/eval/mm-vet/llava-mm-vet.jsonl \
-        --image-folder ./playground/data/eval/mm-vet/images \
+        --data-path ./playground/data/eval/MME/llava_mme.jsonl \
+        --image-folder ./playground/data/eval/MME/MME_Benchmark_release_version \
         --num-chunks $CHUNKS \
         --chunk-idx $IDX &
 done
