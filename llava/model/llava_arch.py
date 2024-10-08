@@ -194,13 +194,13 @@ class LlavaMetaForCausalLM(ABC):
             clip_features = self.get_model().mm_projector[0](clip_features)
             alpha_features = self.get_model().mm_projector[1](alpha_features)
             bbox_embeddings = self.get_model().bbox_projector(bboxes)
-            alpha_features += bbox_embeddings
+            alpha_features += 0 * bbox_embeddings
             return [clip_features, alpha_features]
         else:
             image_features = self.get_model().get_vision_tower()(images)
             image_features = self.get_model().mm_projector(image_features)
             bbox_embeddings = self.get_model().bbox_projector(bboxes)
-            return image_features + bbox_embeddings
+            return image_features + 0 * bbox_embeddings
 
     def prepare_inputs_labels_for_multimodal(
         self,

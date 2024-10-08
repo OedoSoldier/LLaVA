@@ -2,7 +2,7 @@
 
 # Uncomment and set the following variables correspondingly to run this script:
 
-MODEL_VERSION=vicuna-13b-v1.5
+MODEL_VERSION=vicuna-7b-v1.5
 # MODEL_VERSION=llama-2-7b-chat
 
 ########### DO NOT CHANGE ###########
@@ -10,7 +10,7 @@ MODEL_VERSION=vicuna-13b-v1.5
 PROMPT_VERSION=plain
 ########### DO NOT CHANGE ###########
 
-deepspeed llava/train/train_mem.py \
+deepspeed --include localhost:4,5,6,7 llava/train/train_mem.py \
     --deepspeed scripts/zero2.json \
     --model_name_or_path ./checkpoints/$MODEL_VERSION \
     --version $PROMPT_VERSION \
@@ -25,9 +25,9 @@ deepspeed llava/train/train_mem.py \
     --bbox_projector_lr 2e-3 \
     --dual True \
     --bf16 True \
-    --output_dir ./checkpoints/llava-$MODEL_VERSION-pretrain_dual \
+    --output_dir ./checkpoints/llava-$MODEL_VERSION-pretrain_dual_no_bbox \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 4 \
+    --per_device_train_batch_size 8 \
     --per_device_eval_batch_size 1 \
     --gradient_accumulation_steps 8 \
     --evaluation_strategy "no" \

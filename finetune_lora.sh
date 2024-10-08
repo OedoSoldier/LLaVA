@@ -4,7 +4,7 @@
 
 ################## VICUNA ##################
 PROMPT_VERSION=v1
-MODEL_VERSION="vicuna-13b-v1.5"
+MODEL_VERSION="vicuna-7b-v1.5"
 ################## VICUNA ##################
 
 ################## LLaMA-2 ##################
@@ -12,7 +12,7 @@ MODEL_VERSION="vicuna-13b-v1.5"
 # MODEL_VERSION="llama-2-7b-chat"
 ################## LLaMA-2 ##################
 
-deepspeed --include localhost:0,1,2,3 llava/train/train_mem.py \
+deepspeed --include localhost:4,5,6,7 llava/train/train_mem.py \
     --deepspeed scripts/zero2.json \
     --lora_enable True --lora_r 128 --lora_alpha 256 --mm_projector_lr 2e-5 --bbox_projector_lr 2e-5 \
     --model_name_or_path ./checkpoints/$MODEL_VERSION \
@@ -29,11 +29,11 @@ deepspeed --include localhost:0,1,2,3 llava/train/train_mem.py \
     --group_by_modality_length True \
     --dual True \
     --bf16 True \
-    --output_dir ./checkpoints/llava-$MODEL_VERSION-finetune_dual_lora \
+    --output_dir ./checkpoints/llava-$MODEL_VERSION-finetune_dual_lora_no_bbox \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 4 \
+    --per_device_train_batch_size 8 \
     --per_device_eval_batch_size 1 \
-    --gradient_accumulation_steps 8 \
+    --gradient_accumulation_steps 4 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
     --save_steps 50000 \
