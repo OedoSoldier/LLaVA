@@ -1231,9 +1231,7 @@ def train(attn_implementation=None):
 
         model.config.freeze_mm_mlp_adapter = training_args.freeze_mm_mlp_adapter
         if training_args.freeze_mm_mlp_adapter:
-            for p in model.get_model().mm_projector.parameters():
-                p.requires_grad = False
-            for p in model.get_model().bbox_projector.parameters():
+            for p in model.get_model().mm_projector[0].parameters():
                 p.requires_grad = False
 
         if training_args.bits in [4, 8]:

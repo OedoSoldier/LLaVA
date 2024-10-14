@@ -250,6 +250,8 @@ def load_data(args):
     new_data = []
     for i in data:
         if "image" in i.keys():
+            if type(i["image"]) is list:
+                i["image"] = i["image"][0]
             new_data.append(os.path.join(image_folder, i["image"]))
     data = new_data
     data = list(set(data))

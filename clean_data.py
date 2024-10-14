@@ -21,6 +21,9 @@ DATA_PATH = os.path.basename(args.data_path).split(".")[0]
 
 def process_file(data):
     if "image" in data:
+        if type(data["image"]) is list:
+            assert len(data["image"]) == 1, print(data)
+            data["image"] = data["image"][0]
         image_file = data["image"]
         image_path = os.path.join(FOLDER, image_file)
         seg_file = re.sub(r"\.(jpg|jpeg|png|bmp|gif)$", ".npz", image_path)
@@ -54,7 +57,7 @@ def process_file(data):
 
 def main():
     # data = json.load(open(f"{FOLDER}/blip_laion_cc_sbu_558k.json", "r"))
-    with open(f"{FOLDER}/{DATA_PATH}.json", "r") as f:
+    with open(args.data_path, "r") as f:
         data = json.load(f)
     print(len(data))
     with Pool(args.num_workers) as p:
