@@ -5,23 +5,23 @@ IFS=',' read -ra GPULIST <<< "$gpu_list"
 
 CHUNKS=${#GPULIST[@]}
 
-CKPT="llava-vicuna-13b-v1.5-finetune_dual_merged"
+CKPT="llava-vicuna-7b-v1.5-finetune_dual_no_bbox_merged"
 SPLIT="llava_gqa_testdev_balanced"
 GQADIR="./playground/data/eval/gqa/data"
 
-# for IDX in $(seq 0 $((CHUNKS-1))); do
-#     CUDA_VISIBLE_DEVICES=${GPULIST[$IDX]} python llava/eval/model_vqa_loader.py \
-#         --model-path ./checkpoints/$CKPT \
-#         --question-file ./playground/data/eval/gqa/$SPLIT.jsonl \
-#         --image-folder ./playground/data/eval/gqa/data/images \
-#         --answers-file ./playground/data/eval/gqa/answers/$SPLIT/$CKPT/${CHUNKS}_${IDX}.jsonl \
-#         --num-chunks $CHUNKS \
-#         --chunk-idx $IDX \
-#         --temperature 0 \
-#         --conv-mode vicuna_v1 &
-# done
+for IDX in $(seq 0 $((CHUNKS-1))); do
+    CUDA_VISIBLE_DEVICES=${GPULIST[$IDX]} python llava/eval/model_vqa_loader.py \
+        --model-path ./checkpoints/$CKPT \
+        --question-file ./playground/data/eval/gqa/$SPLIT.jsonl \
+        --image-folder ./playground/data/eval/gqa/data/images \
+        --answers-file ./playground/data/eval/gqa/answers/$SPLIT/$CKPT/${CHUNKS}_${IDX}.jsonl \
+        --num-chunks $CHUNKS \
+        --chunk-idx $IDX \
+        --temperature 0 \
+        --conv-mode vicuna_v1 &
+done
 
-# wait
+wait
 
 output_file=./playground/data/eval/gqa/answers/$SPLIT/$CKPT/merge.jsonl
 
