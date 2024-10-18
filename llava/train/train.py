@@ -357,26 +357,21 @@ def preprocess_multimodal(sources: Sequence[str], data_args: DataArguments) -> D
     for source in sources:
         for sentence in source:
             if DEFAULT_IMAGE_TOKEN in sentence["value"]:
-                image_token_num = sentence["value"].count(DEFAULT_IMAGE_TOKEN) + 1
+                image_token_num = sentence["value"].count(DEFAULT_IMAGE_TOKEN)
                 sentence["value"] = (
                     sentence["value"].replace(DEFAULT_IMAGE_TOKEN, "").strip()
                 )
                 if data_args.mm_use_im_start_end:
                     sentence["value"] = (
-                        DEFAULT_IM_START_TOKEN
-                        + DEFAULT_IMAGE_TOKEN
-                        + DEFAULT_IM_END_TOKEN
-                        + DEFAULT_OBJ_START_TOKEN
-                        + DEFAULT_IMAGE_TOKEN * (image_token_num - 1)
+                        DEFAULT_OBJ_START_TOKEN
+                        + DEFAULT_IMAGE_TOKEN image_token_num
                         + DEFAULT_OBJ_END_TOKEN
                         + "\n"
                         + sentence["value"]
                     )
                 else:
                     sentence["value"] = (
-                        DEFAULT_IMAGE_TOKEN
-                        + "\n"
-                        + DEFAULT_IMAGE_TOKEN * (image_token_num - 1)
+                        DEFAULT_IMAGE_TOKEN * image_token_num
                         + "\n"
                         + sentence["value"]
                     )
@@ -687,17 +682,12 @@ def preprocess_plain(
         image_token_num = source[0]["value"].count(DEFAULT_IMAGE_TOKEN)
         if DEFAULT_IM_START_TOKEN in source[0]["value"]:
             source[0]["value"] = (
-                DEFAULT_IM_START_TOKEN
-                + DEFAULT_IMAGE_TOKEN
-                + DEFAULT_IM_END_TOKEN
-                + DEFAULT_OBJ_START_TOKEN
-                + DEFAULT_IMAGE_TOKEN * (image_token_num - 1)
+                DEFAULT_OBJ_START_TOKEN
+                + DEFAULT_IMAGE_TOKEN * image_token_num
                 + DEFAULT_OBJ_END_TOKEN
             )
         else:
-            source[0]["value"] = (
-                DEFAULT_IMAGE_TOKEN + "\n" + DEFAULT_IMAGE_TOKEN * (image_token_num - 1)
-            )
+            source[0]["value"] = DEFAULT_IMAGE_TOKEN * image_token_num
         conversation = (
             source[0]["value"]
             + source[1]["value"]

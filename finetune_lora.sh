@@ -26,7 +26,6 @@ deepspeed --include localhost:1,2 llava/train/train_mem.py \
     --mm_use_im_start_end False \
     --mm_use_im_patch_token False \
     --group_by_modality_length True \
-    --dual True \
     --bf16 True \
     --output_dir ./checkpoints/llava-$MODEL_VERSION-finetune_dual_no_pad_lora \
     --num_train_epochs 1 \

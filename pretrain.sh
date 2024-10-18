@@ -2,7 +2,7 @@
 
 # Uncomment and set the following variables correspondingly to run this script:
 
-MODEL_VERSION=vicuna-13b-v1.5
+MODEL_VERSION=vicuna-7b-v1.5
 # MODEL_VERSION=llama-2-7b-chat
 
 ########### DO NOT CHANGE ###########
@@ -23,7 +23,6 @@ deepspeed llava/train/train_mem.py \
     --mm_use_im_start_end False \
     --mm_use_im_patch_token False \
     --bbox_projector_lr 2e-3 \
-    --dual True \
     --bf16 True \
     --output_dir ./checkpoints/llava-$MODEL_VERSION-pretrain_dual \
     --num_train_epochs 1 \
