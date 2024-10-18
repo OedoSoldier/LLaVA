@@ -26,6 +26,7 @@ import torch
 
 import transformers
 import tokenizers
+import random
 
 from llava.constants import (
     IGNORE_INDEX,
@@ -788,6 +789,7 @@ class LazySupervisedDataset(Dataset):
         super(LazySupervisedDataset, self).__init__()
         with open(data_path, "r") as f:
             list_data_dict = json.load(f)
+        # list_data_dict = random.sample(list_data_dict, len(list_data_dict) // 2)
 
         rank0_print("Formatting inputs...Skip in lazy mode")
         self.tokenizer = tokenizer
@@ -1231,7 +1233,9 @@ def train(attn_implementation=None):
 
         model.config.freeze_mm_mlp_adapter = training_args.freeze_mm_mlp_adapter
         if training_args.freeze_mm_mlp_adapter:
-            for p in model.get_model().mm_projector[0].parameters():
+            for p in model.get_model().mm_projector.parameters():
+                p.requires_grad = False
+            for p in model.get_model().bbox_projector.parameters():
                 p.requires_grad = False
 
         if training_args.bits in [4, 8]:

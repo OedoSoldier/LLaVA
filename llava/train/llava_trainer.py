@@ -264,7 +264,7 @@ class LLaVATrainer(Trainer):
                         "lr": self.args.mm_projector_lr,
                     },
                 ]
-            elif self.args.bbox_projector_lr is not None:
+            if self.args.bbox_projector_lr is not None:
                 print("Using bbox_projector_lr")
                 projector_parameters = [
                     name
@@ -323,7 +323,10 @@ class LLaVATrainer(Trainer):
                         "lr": self.args.bbox_projector_lr,
                     },
                 ]
-            else:
+            if (self.args.bbox_projector_lr is None) and (
+                self.args.bbox_projector_lr is None
+            ):
+                print("Using default lr")
                 optimizer_grouped_parameters = [
                     {
                         "params": [
