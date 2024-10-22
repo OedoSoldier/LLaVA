@@ -8,6 +8,8 @@ import types
 import collections
 import wget
 
+import deepspeed
+
 
 class CLIPVisionTower(nn.Module):
     def __init__(self, vision_tower, args, delay_load=False):
@@ -307,7 +309,65 @@ class AlphaCLIPVisionTower(CLIPVisionTower):
             self.image_processor.image_mean.append(0.5)
             self.image_processor.image_std.append(0.26)
         self.image_processor.do_convert_rgb = False
+
         # -----------------------------------------
+        # For zero3, we need to load the model in a special way
+        # https://github.com/microsoft/DeepSpeed/issues/5326
+        # def load_state_dict(module_to_load, state_dict, start_prefix=""):
+        #     # copy state_dict so _load_from_state_dict can modify it
+        #     metadata = getattr(state_dict, "_metadata", None)
+        #     state_dict = state_dict.copy()
+        #     if metadata is not None:
+        #         state_dict._metadata = metadata
+
+        #     error_msgs = []
+
+        #     def load(module, state_dict, prefix=""):
+        #         local_metadata = (
+        #             {} if metadata is None else metadata.get(prefix[:-1], {})
+        #         )
+        #         args = (state_dict, prefix, local_metadata, True, [], [], error_msgs)
+        #         # Parameters of module and children will start with prefix. We can exit early if there are none in this
+        #         # state_dict
+        #         if len([key for key in state_dict if key.startswith(prefix)]) > 0:
+        #             # In sharded models, each shard has only part of the full state_dict, so only gather
+        #             # parameters that are in the current state_dict.
+        #             named_parameters = dict(
+        #                 module.named_parameters(prefix=prefix[:-1], recurse=False)
+        #             )
+        #             params_to_gather = [
+        #                 named_parameters[k]
+        #                 for k in state_dict.keys()
+        #                 if k in named_parameters
+        #             ]
+        #             if len(params_to_gather) > 0:
+        #                 # because zero3 puts placeholders in model params, this context
+        #                 # manager gathers (unpartitions) the params of the current layer, then loads from
+        #                 # the state dict and then re-partitions them again
+        #                 with deepspeed.zero.GatheredParameters(
+        #                     params_to_gather, modifier_rank=0
+        #                 ):
+        #                     if deepspeed.comm.get_rank() == 0:
+        #                         module._load_from_state_dict(*args)
+        #                         print("Loaded Alpha-CLIP model")
+        #         else:
+        #             module._load_from_state_dict(*args)
+        #             print("Loaded Alpha-CLIP model")
+
+        #         for name, child in module._modules.items():
+        #             if child is not None:
+        #                 load(child, state_dict, prefix + name + ".")
+
+        #     load(module_to_load, state_dict, start_prefix)
+        #     if error_msgs:
+        #         raise RuntimeError(
+        #             "Error(s) in loading state_dict for {}:\n\t{}".format(
+        #                 module_to_load.__class__.__name__, "\n\t".join(error_msgs)
+        #             )
+        #         )
+
+        # load_state_dict(self.vision_tower, converted_dict, start_prefix="")
+
         self.vision_tower.requires_grad_(False)
         self.is_loaded = True
 

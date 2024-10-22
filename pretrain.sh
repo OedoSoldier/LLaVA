@@ -22,6 +22,7 @@ deepspeed llava/train/train_mem.py \
     --mm_vision_select_layer -2 \
     --mm_use_im_start_end False \
     --mm_use_im_patch_token False \
+    --image_aspect_ratio pad \
     --bbox_projector_lr 2e-3 \
     --dual True \
     --bf16 True \

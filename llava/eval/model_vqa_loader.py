@@ -152,10 +152,10 @@ class CustomDataset(Dataset):
         # image = _apply_exif_orientation(image)
         image = CustomDataset._apply_exif_orientation(image)
         image = image.convert("RGBA")
-        if self.image_aspect_ratio == "pad":
-            image = expand2square(
-                image, tuple(int(x * 255) for x in self.image_processor.image_mean)
-            )
+        # if self.image_aspect_ratio == "pad":
+        #     image = expand2square(
+        #         image, tuple(int(x * 255) for x in self.image_processor.image_mean)
+        #     )
         image_size = image.size
         seg = np.load(seg_file)["seg"]
         # if len(ids) == 0:
@@ -169,8 +169,8 @@ class CustomDataset(Dataset):
         for i in ids:
             cur_seg = seg == i
             mask = Image.fromarray(np.uint8(cur_seg * 255), "L")
-            if self.image_aspect_ratio == "pad":
-                mask = expand2square(mask, 0)
+            # if self.image_aspect_ratio == "pad":
+            #     mask = expand2square(mask, 0)
             bbox = mask.getbbox()
             if bbox is None:
                 bbox = [0, 0, 1, 1, 1]

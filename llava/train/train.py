@@ -27,6 +27,7 @@ import torch
 import transformers
 import tokenizers
 import random
+import math
 
 from llava.constants import (
     IGNORE_INDEX,
@@ -789,7 +790,10 @@ class LazySupervisedDataset(Dataset):
         super(LazySupervisedDataset, self).__init__()
         with open(data_path, "r") as f:
             list_data_dict = json.load(f)
-        # list_data_dict = random.sample(list_data_dict, len(list_data_dict) // 2)
+        # random.seed(42)
+        # list_data_dict = random.sample(
+        #     list_data_dict, math.ceil(len(list_data_dict) * 0.5)
+        # )
 
         rank0_print("Formatting inputs...Skip in lazy mode")
         self.tokenizer = tokenizer
@@ -894,8 +898,8 @@ class LazySupervisedDataset(Dataset):
         image = LazySupervisedDataset._apply_exif_orientation(image)
         image = image.convert("RGBA")
         if self.data_args.image_aspect_ratio == "pad":
-            image = LazySupervisedDataset._expand2square(
-                image, tuple(int(x * 255) for x in processor.image_mean)
+            image_padded = LazySupervisedDataset._expand2square(
+                image.copy(), tuple(int(x * 255) for x in processor.image_mean)
             )
         seg = np.load(seg_file)["seg"]
 
@@ -903,12 +907,12 @@ class LazySupervisedDataset(Dataset):
         bboxes = []
         # segs.append(image.copy())
         h, w = image.height, image.width
-        segs.append(image.copy())
+        segs.append(image_padded)
         for i in ids:
             cur_seg = seg == i
             mask = Image.fromarray(np.uint8(cur_seg * 255), "L")
-            if self.data_args.image_aspect_ratio == "pad":
-                mask = LazySupervisedDataset._expand2square(mask, 0)
+            # if self.data_args.image_aspect_ratio == "pad":
+            #     mask = LazySupervisedDataset._expand2square(mask, 0)
             bbox = mask.getbbox()
             if bbox is None:
                 bbox = [0, 0, 1, 1, 1]

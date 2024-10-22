@@ -132,10 +132,10 @@ def eval_model(args):
         image = Image.open(image_path)
         image = apply_exif_orientation(image)
         image = image.convert("RGBA")
-        if getattr(model.config, "image_aspect_ratio", None) == "pad":
-            image = expand2square(
-                image, tuple(int(x * 255) for x in image_processor.image_mean)
-            )
+        # if getattr(model.config, "image_aspect_ratio", None) == "pad":
+        #     image = expand2square(
+        #         image, tuple(int(x * 255) for x in image_processor.image_mean)
+        #     )
         image_size = image.size
         seg = np.load(seg_file)["seg"]
         # if len(ids) == 0:
@@ -149,8 +149,8 @@ def eval_model(args):
         for i in ids:
             cur_seg = seg == i
             mask = Image.fromarray(np.uint8(cur_seg * 255), "L")
-            if getattr(model.config, "image_aspect_ratio", None) == "pad":
-                mask = expand2square(mask, 0)
+            # if getattr(model.config, "image_aspect_ratio", None) == "pad":
+            #     mask = expand2square(mask, 0)
             bbox = mask.getbbox()
             if bbox is None:
                 bbox = [0, 0, 1, 1, 1]

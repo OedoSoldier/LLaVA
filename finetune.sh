@@ -12,7 +12,7 @@ MODEL_VERSION="vicuna-7b-v1.5"
 # MODEL_VERSION="llama-2-7b-chat"
 ################## LLaMA-2 ##################
 
-deepspeed --include localhost:1,2 llava/train/train_mem.py \
+deepspeed --include localhost:1,2,3,4 llava/train/train_mem.py \
     --deepspeed scripts/zero2_offload.json \
     --model_name_or_path ./checkpoints/$MODEL_VERSION \
     --version $PROMPT_VERSION \
@@ -24,14 +24,15 @@ deepspeed --include localhost:1,2 llava/train/train_mem.py \
     --mm_vision_select_layer -2 \
     --mm_use_im_start_end False \
     --mm_use_im_patch_token False \
+    --image_aspect_ratio pad \
     --group_by_modality_length True \
     --dual True \
     --bf16 True \
-    --output_dir ./checkpoints/llava-$MODEL_VERSION-finetune_dual \
+    --output_dir ./checkpoints/llava-$MODEL_VERSION-finetune_dual_no_pad \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 4 \
+    --per_device_train_batch_size 8 \
     --per_device_eval_batch_size 1 \
-    --gradient_accumulation_steps 16 \
+    --gradient_accumulation_steps 4 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
     --save_steps 50000 \
@@ -47,4 +48,3 @@ deepspeed --include localhost:1,2 llava/train/train_mem.py \
     --dataloader_num_workers 4 \
     --lazy_preprocess True \
     --report_to tensorboard
-    # --image_aspect_ratio pad \
