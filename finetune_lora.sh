@@ -29,7 +29,7 @@ deepspeed --include localhost:1,2,3,4 llava/train/train_mem.py \
     --image_aspect_ratio pad \
     --dual True \
     --bf16 True \
-    --output_dir ./checkpoints/llava-$MODEL_VERSION-finetune_dual_no_pad_lora \
+    --output_dir ./checkpoints/llava-$MODEL_VERSION-finetune_dual_lora_40_data \
     --num_train_epochs 1 \
     --per_device_train_batch_size 8 \
     --per_device_eval_batch_size 1 \

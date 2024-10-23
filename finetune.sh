@@ -28,7 +28,7 @@ deepspeed --include localhost:1,2,3,4 llava/train/train_mem.py \
     --group_by_modality_length True \
     --dual True \
     --bf16 True \
-    --output_dir ./checkpoints/llava-$MODEL_VERSION-finetune_dual_no_pad \
+    --output_dir ./checkpoints/llava-$MODEL_VERSION-finetune_dual_50_data \
     --num_train_epochs 1 \
     --per_device_train_batch_size 8 \
     --per_device_eval_batch_size 1 \
