@@ -10,7 +10,7 @@ MODEL_VERSION=vicuna-7b-v1.5
 PROMPT_VERSION=plain
 ########### DO NOT CHANGE ###########
 
-deepspeed llava/train/train_mem.py \
+deepspeed --include localhost:0 --master_port 2345 llava/train/train_mem.py \
     --deepspeed scripts/zero2.json \
     --model_name_or_path ./checkpoints/$MODEL_VERSION \
     --version $PROMPT_VERSION \
@@ -24,11 +24,11 @@ deepspeed llava/train/train_mem.py \
     --mm_use_im_patch_token False \
     --bbox_projector_lr 2e-3 \
     --bf16 True \
-    --output_dir ./checkpoints/llava-$MODEL_VERSION-pretrain_dual \
+    --output_dir ./checkpoints/llava-$MODEL_VERSION-pretrain_single \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 4 \
+    --per_device_train_batch_size 1 \
     --per_device_eval_batch_size 1 \
-    --gradient_accumulation_steps 8 \
+    --gradient_accumulation_steps 1 \
     --evaluation_strategy "no" \
     --save_strategy "steps" \
     --save_steps 24000 \

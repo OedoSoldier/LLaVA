@@ -364,16 +364,14 @@ def preprocess_multimodal(sources: Sequence[str], data_args: DataArguments) -> D
                 if data_args.mm_use_im_start_end:
                     sentence["value"] = (
                         DEFAULT_OBJ_START_TOKEN
-                        + DEFAULT_IMAGE_TOKEN image_token_num
+                        + DEFAULT_IMAGE_TOKEN * image_token_num
                         + DEFAULT_OBJ_END_TOKEN
                         + "\n"
                         + sentence["value"]
                     )
                 else:
                     sentence["value"] = (
-                        DEFAULT_IMAGE_TOKEN * image_token_num
-                        + "\n"
-                        + sentence["value"]
+                        DEFAULT_IMAGE_TOKEN * image_token_num + "\n" + sentence["value"]
                     )
                 sentence["value"] = sentence["value"].strip()
 
@@ -778,7 +776,7 @@ class LazySupervisedDataset(Dataset):
     ):
         super(LazySupervisedDataset, self).__init__()
         with open(data_path, "r") as f:
-            list_data_dict = json.load(f)
+            list_data_dict = json.load(f)[:100]
         # list_data_dict = random.sample(list_data_dict, len(list_data_dict) // 2)
 
         rank0_print("Formatting inputs...Skip in lazy mode")
@@ -893,7 +891,7 @@ class LazySupervisedDataset(Dataset):
         bboxes = []
         # segs.append(image.copy())
         h, w = image.height, image.width
-        segs.append(image.copy())
+        # segs.append(image.copy())
         for i in ids:
             cur_seg = seg == i
             mask = Image.fromarray(np.uint8(cur_seg * 255), "L")

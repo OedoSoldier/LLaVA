@@ -242,13 +242,14 @@ class LlavaMetaForCausalLM(ABC):
                     concat_images = concat_images.to(self.device)
                     concat_bbox = concat_bbox.to(self.device)
                 image_feature = self.encode_images(concat_images, concat_bbox)
-                split_sizes = [image.shape[0] for image in img][1:]
                 if type(image_feature) is list:
+                    split_sizes = [image.shape[0] for image in img][1:]
                     image_feature = [
                         image_feature[0],
                         *torch.split(image_feature[1], split_sizes, dim=0),
                     ]
                 else:
+                    split_sizes = [image.shape[0] for image in img]
                     image_feature = torch.split(image_feature, split_sizes, dim=0)
                 mm_patch_merge_type = getattr(
                     self.config, "mm_patch_merge_type", "flat"

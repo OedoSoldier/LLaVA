@@ -323,7 +323,7 @@ class LLaVATrainer(Trainer):
                         "lr": self.args.bbox_projector_lr,
                     },
                 ]
-            if (self.args.bbox_projector_lr is None) and (
+            if (self.args.mm_projector_lr is None) and (
                 self.args.bbox_projector_lr is None
             ):
                 print("Using default lr")
