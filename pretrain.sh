@@ -23,6 +23,7 @@ deepspeed --include localhost:0 --master_port 2345 llava/train/train_mem.py \
     --mm_use_im_start_end False \
     --mm_use_im_patch_token False \
     --bbox_projector_lr 2e-3 \
+    --alpha True \
     --bf16 True \
     --output_dir ./checkpoints/llava-$MODEL_VERSION-pretrain_single \
     --num_train_epochs 1 \
