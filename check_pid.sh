@@ -1,6 +1,6 @@
 #!/bin/bash
 
-PID=3151578
+PID=3734604
 while [ -e /proc/$PID ]
 do
     echo "Process: $PID is still running"
@@ -12,4 +12,4 @@ echo "Process $PID has finished"
 
 source ~/workspace/miniconda3/etc/profile.d/conda.sh
 conda activate llava
-NCCL_DEBUG=INFO nohup bash finetune_lora.sh > 4.log.out 2>&1 &
+NCCL_DEBUG=INFO nohup bash finetune_lora.sh > 2.log.out 2>&1 &

@@ -792,7 +792,7 @@ class LazySupervisedDataset(Dataset):
             list_data_dict = json.load(f)
         random.seed(42)
         list_data_dict = random.sample(
-            list_data_dict, math.ceil(len(list_data_dict) * 0.4)
+            list_data_dict, math.ceil(len(list_data_dict) * 0.1)
         )
 
         rank0_print("Formatting inputs...Skip in lazy mode")
