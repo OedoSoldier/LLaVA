@@ -27,10 +27,10 @@ def count_img_obj(data):
     return img_count, obj_count
 
 
-print(count_img_obj(data))
+print(len(data), count_img_obj(data))
 
 random.seed(42)
 
 for p in [0.5, 0.4, 0.3, 0.2, 0.1]:
     temp = random.sample(data, math.ceil(len(data) * p))
-    print(p, count_img_obj(temp))
+    print(len(temp), p, count_img_obj(temp))
