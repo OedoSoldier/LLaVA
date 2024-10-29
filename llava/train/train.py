@@ -776,7 +776,7 @@ class LazySupervisedDataset(Dataset):
     ):
         super(LazySupervisedDataset, self).__init__()
         with open(data_path, "r") as f:
-            list_data_dict = json.load(f)[:100]
+            list_data_dict = json.load(f)
         # list_data_dict = random.sample(list_data_dict, len(list_data_dict) // 2)
 
         rank0_print("Formatting inputs...Skip in lazy mode")
