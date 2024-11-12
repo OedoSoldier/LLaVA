@@ -375,7 +375,7 @@ class LlavaMetaForCausalLM(ABC):
             cur_image_idx = 0
             num_images = (cur_input_ids == IMAGE_TOKEN_INDEX).sum()
             if num_images == 0:
-                cur_image_features = image_features[batch_idx]
+                cur_image_features = image_features[batch_idx][cur_image_idx]
                 cur_input_embeds_1 = self.get_model().embed_tokens(cur_input_ids)
                 cur_input_embeds = torch.cat(
                     [

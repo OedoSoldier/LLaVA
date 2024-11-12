@@ -164,7 +164,7 @@ class CustomDataset(Dataset):
 
         segs = []
         bboxes = []
-        segs.append(image.copy())
+        # segs.append(image.copy())
         h, w = image.height, image.width
         for i in ids:
             cur_seg = seg == i
@@ -199,7 +199,7 @@ class CustomDataset(Dataset):
                 + qs
             )
         else:
-            qs = DEFAULT_IMAGE_TOKEN + "\n" + DEFAULT_IMAGE_TOKEN * len(ids) + "\n" + qs
+            qs = DEFAULT_IMAGE_TOKEN * len(ids) + "\n" + qs
 
         conv = conv_templates[args.conv_mode].copy()
         conv.append_message(conv.roles[0], qs)
