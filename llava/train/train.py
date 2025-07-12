@@ -23,7 +23,7 @@ import pathlib
 from typing import Dict, Optional, Sequence, List
 
 import torch
-
+import matplotlib.pyplot as plt
 import transformers
 import tokenizers
 import random
@@ -131,7 +131,8 @@ class TrainingArguments(transformers.TrainingArguments):
     lora_weight_path: str = ""
     lora_bias: str = "none"
     mm_projector_lr: Optional[float] = None
-    bbox_projector_lr: Optional[float] = None
+    confidence_projector_lr: Optional[float] = None
+    shape_projector_lr: Optional[float] = None
     group_by_modality_length: bool = field(default=False)
 
 
@@ -205,7 +206,8 @@ def find_all_linear_names(model):
     lora_module_names = set()
     multimodal_keywords = [
         "mm_projector",
-        "bbox_projector",
+        "confidence_projector",
+        "shape_projector",
         "vision_tower",
         "vision_resampler",
     ]
@@ -226,13 +228,17 @@ def safe_save_model_for_hf_trainer(trainer: transformers.Trainer, output_dir: st
 
     if getattr(trainer.args, "tune_mm_mlp_adapter", False):
         # Only save Adapter
-        keys_to_match = ["mm_projector", "bbox_projector"]
+        keys_to_match = ["mm_projector", "confidence_projector", "shape_projector"]
         if getattr(trainer.args, "use_im_start_end", False):
             keys_to_match.extend(["embed_tokens", "embed_in"])
 
+        # for k, v in trainer.model.state_dict().items():
+        #     if "shape_projector" in k:
+        #         print(k, v.shape)
+
         weight_to_save = get_mm_adapter_state_maybe_zero_3(
-            trainer.model.named_parameters(), keys_to_match
-        )
+            trainer.model.state_dict().items(), keys_to_match
+        )  # trainer.model.named_parameters()
         trainer.model.config.save_pretrained(output_dir)
 
         current_folder = output_dir.split("/")[-1]
@@ -358,7 +364,7 @@ def preprocess_multimodal(sources: Sequence[str], data_args: DataArguments) -> D
     for source in sources:
         for sentence in source:
             if DEFAULT_IMAGE_TOKEN in sentence["value"]:
-                image_token_num = sentence["value"].count(DEFAULT_IMAGE_TOKEN) + 1
+                image_token_num = sentence["value"].count(DEFAULT_IMAGE_TOKEN)
                 sentence["value"] = (
                     sentence["value"].replace(DEFAULT_IMAGE_TOKEN, "").strip()
                 )
@@ -398,6 +404,114 @@ def preprocess_multimodal(sources: Sequence[str], data_args: DataArguments) -> D
             # )
 
     return sources
+
+
+def preprocess_qwen_2(
+    sources, tokenizer: transformers.PreTrainedTokenizer, has_image: bool = False
+) -> Dict:
+    conv = conversation_lib.default_conversation.copy()
+    roles = {"human": conv.roles[0], "gpt": conv.roles[1]}
+
+    # Apply prompt templates
+    conversations = []
+    for i, source in enumerate(sources):
+        if roles[source[0]["from"]] != conv.roles[0]:
+            # Skip the first one if it is not from human
+            source = source[1:]
+
+        conv.messages = []
+        for j, sentence in enumerate(source):
+            role = roles[sentence["from"]]
+            assert role == conv.roles[j % 2], f"{i}"
+            conv.append_message(role, sentence["value"])
+        conversations.append(conv.get_prompt())
+
+    # Tokenize conversations
+
+    if has_image:
+        input_ids = torch.stack(
+            [
+                tokenizer_image_token(prompt, tokenizer, return_tensors="pt")
+                for prompt in conversations
+            ],
+            dim=0,
+        )
+    else:
+        input_ids = tokenizer(
+            conversations,
+            return_tensors="pt",
+            padding="longest",
+            max_length=tokenizer.model_max_length,
+            truncation=True,
+        ).input_ids
+
+    targets = input_ids.clone()
+
+    assert conv.sep_style == conversation_lib.SeparatorStyle.QWEN_2
+
+    # Mask targets
+    sep = conv.sep + conv.roles[1] + ": "
+    for conversation, target in zip(conversations, targets):
+        total_len = int(target.ne(tokenizer.pad_token_id).sum())
+
+        rounds = conversation.split(conv.sep2)
+        rounds_len = len(rounds)
+        cur_len = 0
+        # target[:cur_len] = IGNORE_INDEX
+        for i, rou in enumerate(rounds):
+            if rou == "":
+                break
+
+            parts = rou.split(sep)
+            if len(parts) != 2:
+                break
+            parts[0] += sep
+
+            if has_image:
+                round_ids = tokenizer_image_token(rou, tokenizer)
+                instruction_ids = tokenizer_image_token(parts[0], tokenizer)
+                equal_parts = [x == y for x, y in zip(round_ids, instruction_ids)]
+
+                instruction_len = (
+                    equal_parts.index(False)
+                    if False in equal_parts
+                    else len(equal_parts)
+                )
+                round_len = len(round_ids)
+
+            else:
+                round_ids = tokenizer(rou).input_ids
+                instruction_ids = tokenizer(parts[0]).input_ids
+                equal_parts = [x == y for x, y in zip(round_ids, instruction_ids)]
+
+                instruction_len = (
+                    equal_parts.index(False)
+                    if False in equal_parts
+                    else len(equal_parts)
+                )
+                round_len = len(round_ids)
+
+            if i != 0 and not tokenizer.legacy and IS_TOKENIZER_GREATER_THAN_0_14:
+                round_len += 1
+                instruction_len += 1
+
+            target[cur_len : cur_len + instruction_len] = IGNORE_INDEX
+
+            cur_len += round_len
+        target[cur_len:] = IGNORE_INDEX
+
+        if cur_len < tokenizer.model_max_length:
+            if cur_len != total_len + rounds_len - 2:
+                target[:] = IGNORE_INDEX
+                print(
+                    f"WARNING: tokenization mismatch: {cur_len} vs. {total_len}."
+                    f" (ignored)"
+                )
+
+    return dict(
+        input_ids=input_ids,
+        labels=targets,
+    )
 
 
 def preprocess_llama_2(
@@ -696,9 +810,7 @@ def preprocess_plain(
                 + DEFAULT_OBJ_END_TOKEN
             )
         else:
-            source[0]["value"] = (
-                DEFAULT_IMAGE_TOKEN + "\n" + DEFAULT_IMAGE_TOKEN * (image_token_num - 1)
-            )
+            source[0]["value"] = DEFAULT_IMAGE_TOKEN * image_token_num
         conversation = (
             source[0]["value"]
             + source[1]["value"]
@@ -744,6 +856,8 @@ def preprocess(
         return preprocess_v1(sources, tokenizer, has_image=has_image)
     if conversation_lib.default_conversation.version == "mpt":
         return preprocess_mpt(sources, tokenizer, has_image=has_image)
+    if conversation_lib.default_conversation.version.startswith("qwen_v2"):
+        return preprocess_qwen_2(sources, tokenizer, has_image=has_image)
     # add end signal and concatenate together
     conversations = []
     for source in sources:
@@ -789,11 +903,11 @@ class LazySupervisedDataset(Dataset):
     ):
         super(LazySupervisedDataset, self).__init__()
         with open(data_path, "r") as f:
-            list_data_dict = json.load(f)
+            list_data_dict = json.load(f)  # [:10]
         random.seed(42)
-        list_data_dict = random.sample(
-            list_data_dict, math.ceil(len(list_data_dict) * 0.1)
-        )
+        # list_data_dict = random.sample(
+        #     list_data_dict, math.ceil(len(list_data_dict) * 0.1)
+        # )
 
         rank0_print("Formatting inputs...Skip in lazy mode")
         self.tokenizer = tokenizer
@@ -883,7 +997,8 @@ class LazySupervisedDataset(Dataset):
 
         image_path = self.list_data_dict[idx]["image"]
         seg_file = self.list_data_dict[idx]["seg"]
-        ids = self.list_data_dict[idx]["ids"]
+        info = self.list_data_dict[idx]["info"]
+
         if not os.path.exists(image_path):
             cur_ext = os.path.basename(image_path).split(".")[-1]
             for ext in ["jpg", "jpeg", "png", "bmp", "gif"]:
@@ -903,32 +1018,26 @@ class LazySupervisedDataset(Dataset):
             )
         seg = np.load(seg_file)["seg"]
 
+        new_images = []
         segs = []
-        bboxes = []
-        segs.append(image.copy())
-        h, w = image.height, image.width
-        for i in ids:
-            cur_seg = seg == i
+        scores = []
+        # new_images.append(image.copy())
+        # h, w = image.height, image.width
+        for id, score in info:
+            cur_seg = seg == id
             mask = Image.fromarray(np.uint8(cur_seg * 255), "L")
             if self.data_args.image_aspect_ratio == "pad":
                 mask = LazySupervisedDataset._expand2square(mask, 0)
-            bbox = mask.getbbox()
-            if bbox is None:
-                bbox = [0, 0, 1, 1, 1]
-            else:
-                bbox = [
-                    bbox[0] / w,
-                    bbox[1] / h,
-                    (bbox[2] - bbox[0]) / w,
-                    (bbox[3] - bbox[1]) / h,
-                    np.sum(cur_seg) / (h * w),
-                ]  # normalize bbox, (x, y, w, h, area)
-            bboxes.append(torch.tensor(bbox))
             temp = image.copy()
             temp.putalpha(mask)
-            segs.append(temp)
+            new_images.append(temp)
+            scores.append(torch.tensor(score).unsqueeze(0))
+
+            mask = mask.resize((224, 224))
+            mask = np.array(mask) / 255.0
+            segs.append(torch.tensor(mask).unsqueeze(0))
         del seg
-        image = segs
+        image = new_images.copy()
 
         image = [
             processor.preprocess(
@@ -937,15 +1046,14 @@ class LazySupervisedDataset(Dataset):
             for img in image
         ]
 
-        return image, bboxes
+        return image, segs, scores
 
     @property
     def lengths(self):
         length_list = []
         for sample in self.list_data_dict:
             img_tokens = (
-                128
-                * (sample["conversations"][0]["values"].count(DEFAULT_IMAGE_TOKEN) + 1)
+                128 * (sample["conversations"][0]["values"].count(DEFAULT_IMAGE_TOKEN))
                 if "image" in sample
                 else 0
             )
@@ -972,7 +1080,7 @@ class LazySupervisedDataset(Dataset):
             sources = [sources]
         assert len(sources) == 1, "Don't know why it is wrapped to a list"  # FIXME
         if "image" in sources[0]:
-            image, bboxes = self._load_image(i)
+            image, segs, scores = self._load_image(i)
 
             sources = preprocess_multimodal(
                 copy.deepcopy([e["conversations"] for e in sources]), self.data_args
@@ -990,7 +1098,8 @@ class LazySupervisedDataset(Dataset):
         # image exist in the data
         if "image" in self.list_data_dict[i]:
             data_dict["image"] = image
-            data_dict["bbox"] = bboxes
+            data_dict["mask"] = segs
+            data_dict["score"] = scores
         elif self.data_args.is_multimodal:
             # image does not exist in the data, but the model is multimodal
             crop_size = self.data_args.image_processor.crop_size
@@ -998,7 +1107,8 @@ class LazySupervisedDataset(Dataset):
                 torch.zeros(4, crop_size["height"], crop_size["width"]),
                 torch.zeros(4, crop_size["height"], crop_size["width"]),
             ]
-            data_dict["bbox"] = [torch.zeros(5)]
+            data_dict["mask"] = [torch.zeros((224, 224))]
+            data_dict["score"] = [torch.zeros(1)]
         return data_dict
 
 
@@ -1028,11 +1138,12 @@ class DataCollatorForSupervisedDataset(object):
 
         if "image" in instances[0]:
             images = [instance["image"] for instance in instances]
-            bbox = [instance["bbox"] for instance in instances]
+            mask = [instance["mask"] for instance in instances]
+            score = [instance["score"] for instance in instances]
             # if all(x is not None and x.shape == images[0].shape for x in images):
             #     batch["images"] = torch.stack(images)
             # else:
-            batch["images"] = (images, bbox)
+            batch["images"] = (images, mask, score)
 
         return batch
 
@@ -1076,7 +1187,11 @@ def train(attn_implementation=None):
                 quantization_config=BitsAndBytesConfig(
                     load_in_4bit=training_args.bits == 4,
                     load_in_8bit=training_args.bits == 8,
-                    llm_int8_skip_modules=["mm_projector", "bbox_projector"],
+                    llm_int8_skip_modules=[
+                        "mm_projector",
+                        "confidence_projector",
+                        "shape_projector",
+                    ],
                     llm_int8_threshold=6.0,
                     llm_int8_has_fp16_weight=False,
                     bnb_4bit_compute_dtype=compute_dtype,
@@ -1095,6 +1210,14 @@ def train(attn_implementation=None):
             model = LlavaMptForCausalLM.from_pretrained(
                 model_args.model_name_or_path,
                 config=config,
+                cache_dir=training_args.cache_dir,
+                **bnb_model_from_pretrained_args,
+            )
+        elif "Qwen2" in model_args.model_name_or_path:
+            model = LlavaQwen2ForCausalLM.from_pretrained(
+                model_args.model_name_or_path,
+                attn_implementation=attn_implementation,
+                torch_dtype=(torch.bfloat16 if training_args.bf16 else None),
                 cache_dir=training_args.cache_dir,
                 **bnb_model_from_pretrained_args,
             )
@@ -1231,21 +1354,33 @@ def train(attn_implementation=None):
             model.requires_grad_(False)
             for p in model.get_model().mm_projector.parameters():
                 p.requires_grad = True
-            for p in model.get_model().bbox_projector.parameters():
+            for p in model.get_model().confidence_projector.parameters():
                 p.requires_grad = True
+            for p in model.get_model().shape_projector.parameters():
+                p.requires_grad = True
+        model.get_model().shape_projector = (
+            torch.nn.SyncBatchNorm.convert_sync_batchnorm(
+                model.get_model().shape_projector
+            )
+        )
 
         model.config.freeze_mm_mlp_adapter = training_args.freeze_mm_mlp_adapter
         if training_args.freeze_mm_mlp_adapter:
             for p in model.get_model().mm_projector.parameters():
                 p.requires_grad = False
-            for p in model.get_model().bbox_projector.parameters():
+            for p in model.get_model().confidence_projector.parameters():
+                p.requires_grad = False
+            for p in model.get_model().shape_projector.parameters():
                 p.requires_grad = False
 
         if training_args.bits in [4, 8]:
             model.get_model().mm_projector.to(
                 dtype=compute_dtype, device=training_args.device
             )
-            model.get_model().bbox_projector.to(
+            model.get_model().confidence_projector.to(
+                dtype=compute_dtype, device=training_args.device
+            )
+            model.get_model().shape_projector.to(
                 dtype=compute_dtype, device=training_args.device
             )
 
@@ -1253,7 +1388,8 @@ def train(attn_implementation=None):
             model_args.mm_use_im_start_end
         )
         model.config.mm_projector_lr = training_args.mm_projector_lr
-        model.config.bbox_projector_lr = training_args.bbox_projector_lr
+        model.config.confidence_projector_lr = training_args.confidence_projector_lr
+        model.config.shape_projector_lr = training_args.shape_projector_lr
         training_args.use_im_start_end = model_args.mm_use_im_start_end
         model.config.mm_use_im_patch_token = model_args.mm_use_im_patch_token
         model.initialize_vision_tokenizer(model_args, tokenizer=tokenizer)

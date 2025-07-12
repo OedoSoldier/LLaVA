@@ -19,7 +19,11 @@ import torch
 import torch.nn as nn
 
 from .multimodal_encoder.builder import build_vision_tower
-from .multimodal_projector.builder import build_vision_projector, build_bbox_projector
+from .multimodal_projector.builder import (
+    build_vision_projector,
+    build_shape_projector,
+    build_confidence_projector,
+)
 
 from llava.constants import (
     IGNORE_INDEX,
@@ -42,7 +46,8 @@ class LlavaMetaModel:
         if hasattr(config, "mm_vision_tower"):
             self.vision_tower = build_vision_tower(config, delay_load=True)
             self.mm_projector = build_vision_projector(config)
-            self.bbox_projector = build_bbox_projector(config)
+            self.shape_projector = build_shape_projector(config)
+            self.confidence_projector = build_confidence_projector(config)
 
             if "unpad" in getattr(config, "mm_patch_merge_type", ""):
                 self.image_newline = nn.Parameter(
@@ -96,7 +101,8 @@ class LlavaMetaModel:
 
         if getattr(self, "mm_projector", None) is None:
             self.mm_projector = build_vision_projector(self.config)
-            self.bbox_projector = build_bbox_projector(self.config)
+            self.shape_projector = build_shape_projector(self.config)
+            self.confidence_projector = build_confidence_projector(self.config)
 
             if "unpad" in mm_patch_merge_type:
                 embed_std = 1 / torch.sqrt(
@@ -109,7 +115,9 @@ class LlavaMetaModel:
             # In case it is frozen by LoRA
             for p in self.mm_projector.parameters():
                 p.requires_grad = True
-            for p in self.bbox_projector.parameters():
+            for p in self.shape_projector.parameters():
+                p.requires_grad = True
+            for p in self.confidence_projector.parameters():
                 p.requires_grad = True
 
         if pretrain_mm_mlp_adapter is not None:
@@ -143,9 +151,13 @@ class LlavaMetaModel:
                 self.mm_projector.load_state_dict(
                     get_w(mm_projector_weights, "mm_projector")
                 )
-            if len(get_w(mm_projector_weights, "bbox_projector")) > 0:
-                self.bbox_projector.load_state_dict(
-                    get_w(mm_projector_weights, "bbox_projector")
+            if len(get_w(mm_projector_weights, "shape_projector")) > 0:
+                self.shape_projector.load_state_dict(
+                    get_w(mm_projector_weights, "shape_projector")
+                )
+            if len(get_w(mm_projector_weights, "confidence_projector")) > 0:
+                self.confidence_projector.load_state_dict(
+                    get_w(mm_projector_weights, "confidence_projector")
                 )
 
 
@@ -189,21 +201,27 @@ class LlavaMetaForCausalLM(ABC):
     def get_vision_tower(self):
         return self.get_model().get_vision_tower()
 
-    def encode_images(self, images, bboxes):
+    def encode_images(self, images, masks, scores):
         if type(self.get_model().get_vision_tower()) is torch.nn.ModuleList:
             clip, alpha_clip = self.get_model().get_vision_tower()
             clip_features = clip(images[[0], :3, :, :])
             alpha_features = alpha_clip(images[1:, :, :, :])
             clip_features = self.get_model().mm_projector[0](clip_features)
             alpha_features = self.get_model().mm_projector[1](alpha_features)
-            bbox_embeddings = self.get_model().bbox_projector(bboxes)
-            alpha_features += bbox_embeddings
+            shape_embeddings = self.get_model().shape_projector(masks)
+            confidence_features = self.get_model().confidence_projector(scores)
+            alpha_features = alpha_features + shape_embeddings + confidence_features
             return [clip_features, alpha_features]
         else:
             image_features = self.get_model().get_vision_tower()(images)
             image_features = self.get_model().mm_projector(image_features)
-            bbox_embeddings = self.get_model().bbox_projector(bboxes)
-            return image_features + bbox_embeddings
+            shape_embeddings = self.get_model().shape_projector(masks)
+            confidence_features = self.get_model().confidence_projector(scores)
+            return (
+                image_features
+                + shape_embeddings.unsqueeze(1)
+                + confidence_features.unsqueeze(1)
+            )
 
     def prepare_inputs_labels_for_multimodal(
         self,
@@ -227,22 +245,28 @@ class LlavaMetaForCausalLM(ABC):
                 labels,
             )
 
-        images, bboxes = images
+        images, masks, scores = images
 
         if type(images) is list:
             image_features = []
             for idx, img in enumerate(images):
-                bbox = bboxes[idx]
+                mask = masks[idx]
+                score = scores[idx]
                 if type(img) is list:
                     img = [x.unsqueeze(0) if x.ndim == 3 else x for x in img]
-                    bbox = [x.view(1, 1, -1) if x.ndim == 1 else x for x in bbox]
+                    mask = [x.unsqueeze(0) if x.ndim == 3 else x for x in mask]
+                    score = [x.unsqueeze(0) if x.ndim == 1 else x for x in score]
                 concat_images = torch.cat([image for image in img], dim=0)
-                concat_bbox = torch.cat([box for box in bbox], dim=0)
+                concat_mask = torch.cat([mask for mask in mask], dim=0)
+                concat_score = torch.cat([score for score in score], dim=0)
                 if concat_images.device != self.device:
                     concat_images = concat_images.to(self.device)
-                    concat_bbox = concat_bbox.to(self.device)
-                image_feature = self.encode_images(concat_images, concat_bbox)
-                split_sizes = [image.shape[0] for image in img][1:]
+                    concat_mask = concat_mask.to(self.device)
+                    concat_score = concat_score.to(self.device)
+                image_feature = self.encode_images(
+                    concat_images, concat_mask, concat_score
+                )
+                split_sizes = [image.shape[0] for image in img]
                 if type(image_feature) is list:
                     image_feature = [
                         image_feature[0],
@@ -331,7 +355,7 @@ class LlavaMetaForCausalLM(ABC):
                     )
                 image_features.append(image_feature)
         else:
-            image_features = [self.encode_images(images, bboxes)]
+            image_features = [self.encode_images(images, masks, scores)]
 
         # TODO: image start / end is not implemented here to support pretraining.
         # if getattr(self.config, "tune_mm_mlp_adapter", False) and getattr(
@@ -374,16 +398,26 @@ class LlavaMetaForCausalLM(ABC):
             cur_image_idx = 0
             num_images = (cur_input_ids == IMAGE_TOKEN_INDEX).sum()
             if num_images == 0:
-                cur_image_features, cur_obj_features = image_features[batch_idx]
                 cur_input_embeds_1 = self.get_model().embed_tokens(cur_input_ids)
-                cur_input_embeds = torch.cat(
-                    [
-                        cur_input_embeds_1,
-                        cur_image_features[0:0],
-                        cur_obj_features[0:0],
-                    ],
-                    dim=0,
-                )
+                if type(image_features[batch_idx]) is list:
+                    cur_image_features, cur_obj_features = image_features[batch_idx]
+                    cur_input_embeds = torch.cat(
+                        [
+                            cur_input_embeds_1,
+                            cur_image_features[0:0],
+                            cur_obj_features[0:0],
+                        ],
+                        dim=0,
+                    )
+                else:
+                    cur_image_features = image_features[batch_idx]
+                    cur_input_embeds = torch.cat(
+                        [
+                            cur_input_embeds_1,
+                            cur_image_features[0:0],
+                        ],
+                        dim=0,
+                    )
                 new_input_embeds.append(cur_input_embeds)
                 new_labels.append(labels[batch_idx])
                 # cur_image_idx += 1

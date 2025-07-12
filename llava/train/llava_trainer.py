@@ -264,12 +264,12 @@ class LLaVATrainer(Trainer):
                         "lr": self.args.mm_projector_lr,
                     },
                 ]
-            if self.args.bbox_projector_lr is not None:
-                print("Using bbox_projector_lr")
+            if self.args.confidence_projector_lr is not None:
+                print("Using confidence_projector_lr")
                 projector_parameters = [
                     name
                     for name, _ in opt_model.named_parameters()
-                    if "bbox_projector" in name
+                    if "confidence_projector" in name
                 ]
                 optimizer_grouped_parameters = [
                     {
@@ -307,7 +307,7 @@ class LLaVATrainer(Trainer):
                             )
                         ],
                         "weight_decay": self.args.weight_decay,
-                        "lr": self.args.bbox_projector_lr,
+                        "lr": self.args.confidence_projector_lr,
                     },
                     {
                         "params": [
@@ -320,11 +320,56 @@ class LLaVATrainer(Trainer):
                             )
                         ],
                         "weight_decay": 0.0,
-                        "lr": self.args.bbox_projector_lr,
+                        "lr": self.args.confidence_projector_lr,
+                    },
+                ]
+            if self.args.shape_projector_lr is not None:
+                print("Using shape_projector_lr")
+                projector_parameters = [
+                    name
+                    for name, _ in opt_model.named_parameters()
+                    if "shape_projector" in name
+                ]
+                optimizer_grouped_parameters = [
+                    {
+                        "params": [
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (n in decay_parameters and n not in projector_parameters and p.requires_grad)
+                        ],
+                        "weight_decay": self.args.weight_decay,
+                    },
+                    {
+                        "params": [
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (n not in decay_parameters and n not in projector_parameters and p.requires_grad)
+                        ],
+                        "weight_decay": 0.0,
+                    },
+                    {
+                        "params": [
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (n in decay_parameters and n in projector_parameters and p.requires_grad)
+                        ],
+                        "weight_decay": self.args.weight_decay,
+                        "lr": self.args.shape_projector_lr,
+                    },
+                    {
+                        "params": [
+                            p
+                            for n, p in opt_model.named_parameters()
+                            if (n not in decay_parameters and n in projector_parameters and p.requires_grad)
+                        ],
+                        "weight_decay": 0.0,
+                        "lr": self.args.shape_projector_lr,
                     },
                 ]
             if (self.args.mm_projector_lr is None) and (
-                self.args.bbox_projector_lr is None
+                self.args.confidence_projector_lr is None
+            ) and (
+                self.args.shape_projector_lr is None
             ):
                 print("Using default lr")
                 optimizer_grouped_parameters = [
@@ -385,7 +430,7 @@ class LLaVATrainer(Trainer):
             output_dir = os.path.join(run_dir, checkpoint_folder)
 
             # Only save Adapter
-            keys_to_match = ["mm_projector", "bbox_projector", "vision_resampler"]
+            keys_to_match = ["mm_projector", "confidence_projector", "shape_projector", "vision_resampler"]
             if getattr(self.args, "use_im_start_end", False):
                 keys_to_match.extend(["embed_tokens", "embed_in"])
 

@@ -17,6 +17,7 @@ DEFAULT_IMAGE_TOKEN = "<image>"
 
 FOLDER = args.image_folder
 DATA_PATH = os.path.basename(args.data_path).split(".")[0]
+DATA_FOLDER = os.path.dirname(args.data_path)
 
 
 def process_file(data):
@@ -27,29 +28,43 @@ def process_file(data):
         image_file = data["image"]
         image_path = os.path.join(FOLDER, image_file)
         seg_file = re.sub(r"\.(jpg|jpeg|png|bmp|gif)$", ".npz", image_path)
-        seg_info = seg_file.replace(".npz", ".json")
+        seg_info = seg_file.replace(".npz", "_id.json")
         with open(seg_info, "r") as f:
             info = json.load(f)
-        ids = [0] + [i["id"] for i in info]
-        seg = np.load(seg_file)["seg"]
-        w, h = seg.shape
-        new_ids = []
-        for id in ids:
-            mask = seg == id
-            total_pixels = np.sum(mask) / (w * h)
-            if id == 0 and total_pixels <= 0.1:
-                continue
-            new_ids.append(id)
-        # ids = sorted(pixels, key=lambda x: pixels[x], reverse=True)
+        # sort info by score
+        try:
+            # info = sorted(info, key=lambda x: x[0], reverse=False)
+            seg = np.load(seg_file)["seg"]
+            # w, h = seg.shape
+            new_ids = []
+            pixels = []
+            for id, score in info:
+                mask = seg == id
+                total_pixels = np.sum(mask)
+                new_ids.append([id, score])
+                pixels.append(total_pixels)
+            # sort by area
+            info = [
+                x
+                for _, x in sorted(
+                    zip(pixels, new_ids), key=lambda x: x[0], reverse=True
+                )
+            ]
+            # print(pixels, new_ids, info)
+        except:
+            print(info)
+            # remove seg info file
+            # os.remove(seg_info)
+            return None
 
-        data["ids"] = new_ids
+        data["info"] = info
         # data["image"] = image_path
         # data["seg"] = seg_file
 
         user_inputs = data["conversations"][0]["value"]
         user_inputs = user_inputs.replace(
             DEFAULT_IMAGE_TOKEN,
-            "".join([DEFAULT_IMAGE_TOKEN] * len(data["ids"])),
+            "".join([DEFAULT_IMAGE_TOKEN] * len(data["info"])),
         )
         data["conversations"][0]["value"] = user_inputs
     return data
@@ -67,7 +82,7 @@ def main():
     print(len(result))
     json.dump(
         result,
-        open(f"{FOLDER}/{DATA_PATH}_cleaned.json", "w"),
+        open(f"{DATA_FOLDER}/{DATA_PATH}_cleaned.json", "w"),
         indent=4,
     )
 
